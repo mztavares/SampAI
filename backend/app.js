@@ -54,18 +54,27 @@ async function getConnection() {
   }
 }
 
+
 // Conexão com Google Firestore (nova funcionalidade)
 try {
-  const serviceAccountPath = process.env.FIREBASE_CREDENTIALS_PATH;
-  if (serviceAccountPath) {
-    const serviceAccount = require(serviceAccountPath);
+  // 1. Buscamos o CONTEÚDO do JSON da variável de ambiente que criamos no Render.
+  const serviceAccountString = process.env.FIREBASE_CREDENTIALS;
+
+  // 2. Verificamos se a variável existe.
+  if (serviceAccountString) {
+    // 3. Convertemos a string JSON para um objeto JavaScript.
+    const serviceAccount = JSON.parse(serviceAccountString);
+
+    // 4. Usamos o objeto para inicializar o Firebase.
     initializeApp({ credential: cert(serviceAccount) });
     console.log('✅ Conectado ao Google Cloud Firestore com sucesso!');
   } else {
-    console.warn('🟠 AVISO: A integração com Firestore está desabilitada. Preencha a variável FIREBASE_CREDENTIALS_PATH no .env para ativar.');
+    // O aviso agora é sobre a nova variável de conteúdo.
+    console.warn('🟠 AVISO: A integração com Firestore está desabilitada. Preencha a variável de ambiente FIREBASE_CREDENTIALS para ativar.');
   }
 } catch (error) {
-    console.error('❌ ERRO: Não foi possível conectar ao Firestore. Verifique o caminho do arquivo de credenciais.', error.message);
+  // O erro agora pode ser de JSON inválido ou de conexão.
+  console.error('❌ ERRO: Não foi possível conectar ao Firestore. Verifique a variável de ambiente FIREBASE_CREDENTIALS.', error.message);
 }
 
 
