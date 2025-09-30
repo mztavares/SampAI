@@ -5,3 +5,4 @@ node_modules/
 backend/database.sqlite
 backend/config.env
 backend/firebase-credentials.json
+ 

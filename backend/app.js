@@ -19,6 +19,11 @@ const PORT = process.env.PORT || 5000;
 app.use(cors()); // Permite a comunicação entre frontend e backend (essencial para a nuvem)
 app.use(express.json());
 
+app.get('/healthz', (req, res) => {
+  res.status(200).send('ok');
+});
+
+
 
 // --- (A) CONEXÕES COM BANCOS DE DADOS ---
 
