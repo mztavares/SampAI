@@ -80,11 +80,7 @@ try {
 
 // --- (B) NOVAS ROTAS DE API PARA A IA ---
 
-
-
-// No seu arquivo backend/app.js, substitua a rota /api/chat por esta:
-
-// No seu arquivo backend/app.js, substitua a rota /api/chat por esta:
+// No seu arquivo backend/app.js, substitua a rota /api/chat por esta versão final:
 
 app.post('/api/chat', async (req, res) => {
     console.log("--> [INÍCIO] Requisição recebida em /api/chat.");
@@ -96,25 +92,27 @@ app.post('/api/chat', async (req, res) => {
     }
     
     try {
-        let contentsToSend = [...conversationHistory];
-
-        if (contentsToSend.length === 0) {
-            console.log("--> [INFO] Histórico vazio. Criando mensagem inicial.");
-            contentsToSend.push({ role: 'user', parts: [{ text: 'Olá, por favor, apresente-se como Oscar Niemeyer e inicie nossa conversa sobre São Paulo.' }] });
-        }
+        // --- LÓGICA DE CONSTRUÇÃO DO PAYLOAD TOTALMENTE REFEITA ---
         
-        // Mantemos a v1beta, que é a correta para este formato de requisição
-        const geminiURL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent`;
+        // 1. A instrução do sistema se torna a primeira parte da conversa.
+        // Esta é a forma mais compatível de passar o prompt do sistema.
+        const conversationTurns = [
+            { role: 'user', parts: [{ text: systemPrompt }] },
+            { role: 'model', parts: [{ text: "Entendido. Pode começar." }] } // Resposta curta para a IA "aceitar" a instrução.
+        ];
 
+        // 2. Adicionamos o histórico da conversa real DEPOIS da instrução inicial.
+        conversationTurns.push(...conversationHistory);
+        
+        // Usamos a URL v1, que sabemos que funciona para encontrar o modelo
+        const geminiURL = `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent`;
+
+        // 3. O corpo da requisição agora tem APENAS o campo "contents".
         const requestBody = {
-            // ===== A CORREÇÃO FINAL ESTÁ AQUI =====
-            systemInstruction: { // Usando o nome correto: "systemInstruction" (camelCase)
-                parts: [{ text: systemPrompt }]
-            },
-            contents: contentsToSend
+            contents: conversationTurns
         };
 
-        console.log("--> [INFO] Enviando para a API Gemini (v1beta)...");
+        console.log("--> [INFO] Enviando para a API Gemini (v1) com payload final...");
 
         const geminiResponse = await fetch(geminiURL, {
             method: 'POST',
@@ -159,6 +157,8 @@ app.post('/api/chat', async (req, res) => {
         res.status(500).json({ error: 'Falha ao processar a conversa.' });
     }
 });
+
+
 // Esta rota agora simula a leitura do Firestore e a lógica do Vigía Urbano
 app.post('/api/gerar-roteiro', async (req, res) => {
     const { conversationId } = req.body;
