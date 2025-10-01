@@ -60,7 +60,7 @@ async function getConnection() {
 
 // ===== MUDANÇA 2: Conexão com Firestore usando a nova variável de ambiente genérica =====
 try {
-  const serviceAccountString = process.env.GOOGLE_APPLICATION_CREDENTIALS; // Usando a nova credencial
+  const serviceAccountString = process.env.GCP_CREDENTIALS; // Usando a nova credencial
   if (serviceAccountString) {
     const serviceAccount = JSON.parse(serviceAccountString);
     initializeApp({ credential: cert(serviceAccount) });
@@ -85,11 +85,21 @@ app.post('/api/chat', async (req, res) => {
     }
 
     try {
-        // 1. Inicializa o cliente Vertex AI
-        // Ele automaticamente usará as credenciais da variável de ambiente GCP_CREDENTIALS.
+        // --- LÓGICA FINAL E CORRETA DE AUTENTICAÇÃO ---
+
+        // 1. Lemos o CONTEÚDO JSON da nossa variável de ambiente customizada.
+        const credentialsString = process.env.GCP_CREDENTIALS;
+        if (!credentialsString) {
+            throw new Error("A variável de ambiente GCP_CREDENTIALS não foi encontrada ou está vazia.");
+        }
+        const credentials = JSON.parse(credentialsString);
+
+        // 2. Inicializamos o cliente Vertex AI, passando as credenciais DIRETAMENTE.
+        // Isso impede a biblioteca de tentar procurar um arquivo.
         const vertex_ai = new VertexAI({
-            project: process.env.GCP_PROJECT_ID, // Nova variável de ambiente
-            location: 'us-central1'              // Nova variável de ambiente (ou fixo)
+            project: credentials.project_id, // Pegamos o ID do projeto do próprio JSON
+            location: 'us-central1',
+            credentials: credentials       // <-- O PASSO CHAVE!
         });
 
         // 2. Seleciona o modelo e define o prompt do sistema
@@ -146,7 +156,7 @@ app.post('/api/chat', async (req, res) => {
 app.post('/api/finalizar-onboarding', async (req, res) => {
     const { conversation } = req.body;
     // Corrigido para verificar a variável de ambiente correta
-    if (!process.env.GOOGLE_APPLICATION_CREDENTIALS) {
+    if (!process.env.GCP_CREDENTIALS) {
       console.warn('Firestore desabilitado, pulando salvamento da conversa.');
       return res.status(200).json({ message: 'Conversa não salva (Firestore desabilitado).', conversationId: `simulado_${Date.now()}` });
     }
