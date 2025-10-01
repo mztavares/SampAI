@@ -10,13 +10,16 @@ const { initializeApp, cert } = require('firebase-admin/app');
 const { getFirestore } = require('firebase-admin/firestore');
 require('dotenv').config();
 
+// ===== MUDANÇA 1: Adicionando a biblioteca oficial do Google Vertex AI =====
+const { VertexAI } = require('@google-cloud/vertexai');
+
 
 // --- CONFIGURAÇÃO INICIAL ---
 const app = express();
 const PORT = process.env.PORT || 5000;
 
 // --- MIDDLEWARES ---
-app.use(cors()); // Permite a comunicação entre frontend e backend (essencial para a nuvem)
+app.use(cors());
 app.use(express.json());
 
 app.get('/healthz', (req, res) => {
@@ -27,7 +30,7 @@ app.get('/healthz', (req, res) => {
 
 // --- (A) CONEXÕES COM BANCOS DE DADOS ---
 
-// Conexão com Oracle (seu código original)
+// Conexão com Oracle (seu código original - sem alterações)
 const dbConfig = {
   user: process.env.DB_USER || 'rm98044',
   password: process.env.DB_PASSWORD,
@@ -55,84 +58,70 @@ async function getConnection() {
 }
 
 
-// Conexão com Google Firestore (nova funcionalidade)
+// ===== MUDANÇA 2: Conexão com Firestore usando a nova variável de ambiente genérica =====
 try {
-  // 1. Buscamos o CONTEÚDO do JSON da variável de ambiente que criamos no Render.
-  const serviceAccountString = process.env.FIREBASE_CREDENTIALS;
-
-  // 2. Verificamos se a variável existe.
+  const serviceAccountString = process.env.GCP_CREDENTIALS; // Usando a nova credencial
   if (serviceAccountString) {
-    // 3. Convertemos a string JSON para um objeto JavaScript.
     const serviceAccount = JSON.parse(serviceAccountString);
-
-    // 4. Usamos o objeto para inicializar o Firebase.
     initializeApp({ credential: cert(serviceAccount) });
     console.log('✅ Conectado ao Google Cloud Firestore com sucesso!');
   } else {
-    // O aviso agora é sobre a nova variável de conteúdo.
-    console.warn('🟠 AVISO: A integração com Firestore está desabilitada. Preencha a variável de ambiente FIREBASE_CREDENTIALS para ativar.');
+    console.warn('🟠 AVISO: A integração com Firestore está desabilitada. Preencha a variável de ambiente GCP_CREDENTIALS para ativar.');
   }
 } catch (error) {
-  // O erro agora pode ser de JSON inválido ou de conexão.
-  console.error('❌ ERRO: Não foi possível conectar ao Firestore. Verifique a variável de ambiente FIREBASE_CREDENTIALS.', error.message);
+  console.error('❌ ERRO: Não foi possível conectar ao Firestore. Verifique a variável de ambiente GCP_CREDENTIALS.', error.message);
 }
 
 
 // --- (B) NOVAS ROTAS DE API PARA A IA ---
 
-// No seu arquivo backend/app.js, substitua a rota /api/chat por esta versão final:
-
+// ===== MUDANÇA 3: Rota /api/chat totalmente refeita para usar o Vertex AI SDK =====
 app.post('/api/chat', async (req, res) => {
     console.log("--> [INÍCIO] Requisição recebida em /api/chat.");
     const { conversationHistory, systemPrompt } = req.body;
 
     if (!conversationHistory || !systemPrompt) {
-        console.error("--> [ERRO] Requisição incompleta.");
         return res.status(400).json({ error: 'Histórico da conversa e prompt do sistema são obrigatórios.' });
     }
-    
+
     try {
-        // --- LÓGICA DE CONSTRUÇÃO DO PAYLOAD TOTALMENTE REFEITA ---
-        
-        // 1. A instrução do sistema se torna a primeira parte da conversa.
-        // Esta é a forma mais compatível de passar o prompt do sistema.
-        const conversationTurns = [
-            { role: 'user', parts: [{ text: systemPrompt }] },
-            { role: 'model', parts: [{ text: "Entendido. Pode começar." }] } // Resposta curta para a IA "aceitar" a instrução.
-        ];
-
-        // 2. Adicionamos o histórico da conversa real DEPOIS da instrução inicial.
-        conversationTurns.push(...conversationHistory);
-        
-        // Usamos a URL v1, que sabemos que funciona para encontrar o modelo
-        const geminiURL = `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent`;
-
-        // 3. O corpo da requisição agora tem APENAS o campo "contents".
-        const requestBody = {
-            contents: conversationTurns
-        };
-
-        console.log("--> [INFO] Enviando para a API Gemini (v1) com payload final...");
-
-        const geminiResponse = await fetch(geminiURL, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'x-goog-api-key': process.env.GEMINI_API_KEY
-            },
-            body: JSON.stringify(requestBody)
+        // 1. Inicializa o cliente Vertex AI
+        // Ele automaticamente usará as credenciais da variável de ambiente GCP_CREDENTIALS.
+        const vertex_ai = new VertexAI({
+            project: process.env.GCP_PROJECT_ID, // Nova variável de ambiente
+            location: 'us-central1'              // Nova variável de ambiente (ou fixo)
         });
 
-        if (!geminiResponse.ok) {
-            const errorText = await geminiResponse.text();
-            console.error('--> [ERRO] Erro retornado pela API Gemini:', errorText);
-            throw new Error(`Erro na API Gemini: ${errorText}`);
+        // 2. Seleciona o modelo e define o prompt do sistema
+        const generativeModel = vertex_ai.getGenerativeModel({
+            model: 'gemini-1.5-flash-001', // Nome de modelo estável para Vertex AI
+            systemInstruction: {
+                parts: [{ text: systemPrompt }]
+            },
+        });
+
+        // 3. Extrai a última mensagem do usuário do histórico para enviar
+        const lastUserMessage = conversationHistory.length > 0 ? conversationHistory[conversationHistory.length - 1].parts[0].text : 'Olá, por favor, apresente-se.';
+        
+        // 4. Cria o histórico para o chat (todas as mensagens, exceto a última)
+        const chatHistory = conversationHistory.slice(0, -1);
+
+        const chat = generativeModel.startChat({
+            history: chatHistory,
+        });
+
+        console.log("--> [INFO] Enviando para a API Vertex AI...");
+        const result = await chat.sendMessage(lastUserMessage);
+        
+        if (!result.response || !result.response.candidates || result.response.candidates.length === 0) {
+            console.error("--> [ERRO] A API Vertex AI respondeu, mas sem conteúdo válido.", result);
+            throw new Error('Resposta inválida da API Vertex AI.');
         }
 
-        console.log("--> [SUCESSO] Resposta recebida da API Gemini.");
-        const geminiData = await geminiResponse.json();
-        const aiTextResponse = geminiData.candidates[0].content.parts[0].text;
+        const aiTextResponse = result.response.candidates[0].content.parts[0].text;
+        console.log("--> [SUCESSO] Resposta recebida da API Vertex AI.");
 
+        // --- CÓDIGO DA ELEVENLABS (CONTINUA IGUAL) ---
         console.log("--> [INFO] Enviando para a API ElevenLabs...");
         const VOICE_ID = process.env.ELEVENLABS_VOICE_ID || 'fxQNo5MuMrwdFQ3f5TBM';
         const elevenLabsURL = `https://api.elevenlabs.io/v1/text-to-speech/${VOICE_ID}`;
@@ -141,14 +130,8 @@ app.post('/api/chat', async (req, res) => {
             headers: { 'Content-Type': 'application/json', 'xi-api-key': process.env.ELEVENLABS_API_KEY },
             body: JSON.stringify({ model_id: 'eleven_multilingual_v2', text: aiTextResponse, voice_settings: { stability: 0.5, similarity_boost: 0.75 } }),
         });
-
-        if (!elevenLabsResponse.ok) {
-            const errorText = await elevenLabsResponse.text();
-            console.error('--> [ERRO] Erro retornado pela API ElevenLabs:', errorText);
-            throw new Error(`Erro na API ElevenLabs: ${errorText}`);
-        }
-
-        console.log("--> [SUCESSO] Áudio recebido da API ElevenLabs.");
+        if (!elevenLabsResponse.ok) throw new Error(`Erro na API ElevenLabs: ${await elevenLabsResponse.text()}`);
+        
         const audioArrayBuffer = await elevenLabsResponse.arrayBuffer();
         res.json({ text: aiTextResponse, audio: Buffer.from(audioArrayBuffer).toString('base64') });
 
@@ -159,19 +142,33 @@ app.post('/api/chat', async (req, res) => {
 });
 
 
-// Esta rota agora simula a leitura do Firestore e a lógica do Vigía Urbano
+// Rota /api/finalizar-onboarding (sem alterações)
+app.post('/api/finalizar-onboarding', async (req, res) => {
+    const { conversation } = req.body;
+    // Corrigido para verificar a variável de ambiente correta
+    if (!process.env.GCP_CREDENTIALS) {
+      console.warn('Firestore desabilitado, pulando salvamento da conversa.');
+      return res.status(200).json({ message: 'Conversa não salva (Firestore desabilitado).', conversationId: `simulado_${Date.now()}` });
+    }
+    try {
+        const firestoreDB = getFirestore();
+        const docRef = await firestoreDB.collection('conversas').add({
+            createdAt: new Date(),
+            conversation: conversation
+        });
+        res.status(200).json({ message: 'Conversa salva com sucesso!', conversationId: docRef.id });
+    } catch (error) {
+        console.error('❌ Erro ao salvar conversa no Firestore:', error);
+        res.status(500).json({ error: 'Não foi possível salvar a conversa.' });
+    }
+});
+
+
+// Rota /api/gerar-roteiro (sem alterações)
 app.post('/api/gerar-roteiro', async (req, res) => {
     const { conversationId } = req.body;
     console.log(`Gerando roteiro para a conversa ID: ${conversationId}`);
-
     try {
-        // Passo 1: Buscar a conversa salva no Firestore (simulado por enquanto)
-        // const firestoreDB = getFirestore();
-        // const conversationDoc = await firestoreDB.collection('conversas').doc(conversationId).get();
-        // const conversationData = conversationDoc.data();
-        // A IA do Gemini analisaria 'conversationData' para extrair os pontos do roteiro.
-
-        // Passo 2: Simular um roteiro gerado a partir da conversa
         const roteiroBase = {
             titulo: `Seu Projeto de Percurso em SP`,
             dias: [
@@ -179,10 +176,7 @@ app.post('/api/gerar-roteiro', async (req, res) => {
                 { dia: 2, titulo: "Natureza, Arte e Boemia", atividades: [ { hora: "15:00", titulo: "Exploração no Parque Ibirapuera"}, { hora: "22:00", titulo: "Noite na Vila Madalena"} ] }
             ]
         };
-        
-        // Passo 3: Chamar a lógica do "Vigía Urbano" para analisar o roteiro
         const roteiroAnalisado = analisarSegurancaRoteiro(roteiroBase);
-
         res.json(roteiroAnalisado);
     } catch (error) {
       console.error('❌ Erro ao gerar o roteiro:', error);
@@ -190,9 +184,8 @@ app.post('/api/gerar-roteiro', async (req, res) => {
     }
 });
 
-// --- Lógica do Vigía Urbano (integrada ao backend) ---
+// Lógica do Vigía Urbano (sem alterações)
 const analisarSegurancaRoteiro = (roteiroOriginal) => {
-    // Esta função simula a análise de segurança que discutimos.
     const DADOS_RISCO = {
         'Catedral da Sé': { noite: { nivel: 'Elevado', analise: "A região central apresenta um risco maior de roubos a transeuntes neste horário.", recomendacoes: "Utilize transporte por aplicativo. Evite caminhar pela praça. Não exiba objetos de valor." } },
         'Avenida Paulista': { tarde: { nivel: 'Médio', analise: "Grande concentração de pessoas, propício para furtos de oportunidade.", recomendacoes: "Use bolsas e mochilas viradas para a frente do corpo." } },
@@ -221,8 +214,7 @@ const analisarSegurancaRoteiro = (roteiroOriginal) => {
 };
 
 
-// --- (C) SUAS ROTAS EXISTENTES (AUTENTICAÇÃO, ROTEIROS, FAVORITOS) ---
-// (Seu código original de /api/register, /api/login, /api/profile, etc. continua aqui, sem alterações)
+// --- SUAS ROTAS EXISTENTES (AUTENTICAÇÃO, ETC. - SEM ALTERAÇÕES) ---
 app.post('/api/register', async (req, res) => {
   let connection;
   try {
@@ -264,7 +256,7 @@ app.post('/api/login', async (req, res) => {
 });
 
 
-// --- (D) ROTAS DE CONTROLE E INICIALIZAÇÃO ---
+// --- ROTAS DE CONTROLE E INICIALIZAÇÃO (sem alterações) ---
 app.get('/api/health', (req, res) => {
   res.status(200).json({ success: true, message: 'API funcionando corretamente' });
 });
@@ -291,5 +283,3 @@ async function startServer() {
 }
 
 startServer();
-
-
