@@ -90,7 +90,7 @@ app.post('/api/chat', async (req, res) => {
     }
 
     try {
-        const geminiURL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent`;
+        const geminiURL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent`;
 
         const requestBody = {
             // Mudei o formato da Instrução do sistema no formato esperado pela API

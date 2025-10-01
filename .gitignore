@@ -5,4 +5,15 @@ node_modules/
 backend/database.sqlite
 backend/config.env
 backend/firebase-credentials.json
- 
+
+# Cache e arquivos temporários do Expo
+/.expo/
+
+# Dependências do Node
+/node_modules/
+
+# Arquivos de segredo (NUNCA envie para o GitHub)
+.env
+
+# Arquivos de configuração de editores
+.vscode/
