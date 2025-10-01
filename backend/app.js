@@ -102,7 +102,7 @@ app.post('/api/chat', async (req, res) => {
             contentsToSend = [{ role: 'user', parts: [{ text: 'Olá, por favor, apresente-se como Oscar Niemeyer e inicie nossa conversa me dando boas vindas ao aplicativo SampAI e me explique brevemente a sua proposta e objetivo dele, ou o que ele me traz de bom.' }] }];
         }
         // ===========================================
-        const geminiURL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent`;
+        const geminiURL = `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash-latest:generateContent`;
 
         const requestBody = {
             // Mudei o formato da Instrução do sistema no formato esperado pela API
