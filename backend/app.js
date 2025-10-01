@@ -99,12 +99,14 @@ app.post('/api/chat', async (req, res) => {
         const vertex_ai = new VertexAI({
             project: credentials.project_id, // Pegamos o ID do projeto do próprio JSON
             location: 'us-central1',
-            credentials: credentials       // <-- O PASSO CHAVE!
+            googleAuthOptions: {
+            credentials, // seu JSON da service account
+          },
         });
 
         // 2. Seleciona o modelo e define o prompt do sistema
         const generativeModel = vertex_ai.getGenerativeModel({
-            model: 'gemini-1.5-flash-001', // Nome de modelo estável para Vertex AI
+            model: 'gemini-2.5-flash', // Nome de modelo estável para Vertex AI
             systemInstruction: {
                 parts: [{ text: systemPrompt }]
             },
