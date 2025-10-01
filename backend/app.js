@@ -80,17 +80,37 @@ try {
 
 // --- (B) NOVAS ROTAS DE API PARA A IA ---
 
+
+
 app.post('/api/chat', async (req, res) => {
-    const { conversationHistory, systemPrompt } = req.body;
+        const { conversationHistory, systemPrompt } = req.body;
+
     if (!conversationHistory || !systemPrompt) {
         return res.status(400).json({ error: 'Histórico da conversa e prompt do sistema são obrigatórios.' });
     }
+
     try {
-        const geminiURL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${process.env.GEMINI_API_KEY}`;
+        const geminiURL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent`;
+
+        const requestBody = {
+            // Mudei o formato da Instrução do sistema no formato esperado pela API
+            system_instruction: {
+                parts: [
+                    { text: systemPrompt }
+                ]
+            },
+
+            // Histórico da conversa já no formato Content - Aqui mantive o mesmo
+            contents: conversationHistory
+        };
+
         const geminiResponse = await fetch(geminiURL, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ contents: conversationHistory, systemInstruction: { parts: [{ text: systemPrompt }] } })
+            headers: {
+                'Content-Type': 'application/json',
+                'x-goog-api-key': process.env.GEMINI_API_KEY // Adicionei a chave de api como Header e nao como parametro na URL
+            },
+            body: JSON.stringify(requestBody)
         });
         if (!geminiResponse.ok) throw new Error(`Erro na API Gemini: ${await geminiResponse.text()}`);
         const geminiData = await geminiResponse.json();

@@ -1,32 +1,22 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator, SafeAreaView, Platform } from 'react-native';
-// Importações mantidas de AMBAS as versões do seu código
+// Substitua pelas suas importações de contexto e componentes de tela
 import { ThemeProvider } from './src/contexts/ThemeContext';
 import SplashScreen from './src/pages/SplashScreen';
-import OnboardingScreen from './src/pages/OnboardingScreen';
-import RegionScreen from './src/pages/RegionScreen';
-import FoodScreen from './src/pages/FoodScreen';
-import ActivitiesScreen from './src/pages/ActivitiesScreen';
-import AgeScreen from './src/pages/AgeScreen';
-import DurationScreen from './src/pages/DurationScreen';
-import StayScreen from './src/pages/StayScreen';
-import ScheduleScreen from './src/pages/ScheduleScreen';
-// Renomeei os componentes para evitar conflito com as importações
-import GeneratingScreenComponent from './src/pages/GeneratingScreen'; 
-import ItineraryScreenComponent from './src/pages/ItineraryScreen';
-import ProfileScreen from './src/pages/ProfileScreen';
-import { useFonts, Poppins_700Bold } from '@expo-google-fonts/poppins';
-import { Montserrat_500Medium, Montserrat_400Regular } from '@expo-google-fonts/montserrat';
+// Adicione as importações de bibliotecas nativas que precisará
+import Voice from '@react-native-voice/voice';
+import { Audio } from 'expo-av';
 
 // --- CONFIGURAÇÃO ---
-const BACKEND_URL = 'https://sampai.onrender.com';
+// ATENÇÃO: Substitua pela URL que o Render.com te dará após o deploy.
+// Para testar localmente, substitua 'localhost' pelo IP da sua máquina na rede.
+const BACKEND_URL = 'https://sampai.onrender.com'; 
 
 // --- ÍCONES SIMULADOS ---
 const BotIcon = () => <Text style={styles.iconStyle}>🤖</Text>;
 const MicIcon = () => <Text style={styles.iconStyle}>🎤</Text>;
 
-
-// --- COMPONENTES DA ARQUITETURA DE VOZ (DEFINIDOS FORA DO APP) ---
+// --- COMPONENTES DA NOVA ARQUITETURA ---
 
 const VoiceOnboarding = ({ onComplete }) => {
     const [messages, setMessages] = useState([]);
@@ -35,6 +25,7 @@ const VoiceOnboarding = ({ onComplete }) => {
     const scrollViewRef = useRef();
 
     useEffect(() => {
+        // Mensagem inicial do Niemeyer
         handleConversation(null, true); 
     }, []);
 
@@ -43,11 +34,10 @@ const VoiceOnboarding = ({ onComplete }) => {
             conversationHistory.current.push({ role: "user", parts: [{ text: userText }] });
         }
         setStatus('thinking');
+
         try {
-            // CORREÇÃO: A string do prompt precisa estar entre crases (``)
             const systemPrompt = `Você é a consciência digital de Oscar Niemeyer. Sua missão é ser um amigo e parceiro de viagem para quem explora São Paulo. Fale com poesia, calor e bom humor. Reaja às respostas do usuário de forma natural. Faça UMA pergunta de cada vez para entender os desejos do usuário. Quando tiver informações suficientes, finalize com a frase EXATA: 'Perfeito. A base do nosso projeto está definida. Permita-me um momento para desenhar as linhas do seu roteiro...'`;
             
-            // CORREÇÃO: Template literal com crases para a URL
             const response = await fetch(`${BACKEND_URL}/api/chat`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -56,7 +46,6 @@ const VoiceOnboarding = ({ onComplete }) => {
 
             if (!response.ok) {
                  const errorText = await response.text();
-                 // CORREÇÃO: Template literal com crases para o erro
                  throw new Error(`Falha na comunicação com o backend: ${errorText}`);
             }
             
@@ -66,9 +55,15 @@ const VoiceOnboarding = ({ onComplete }) => {
             conversationHistory.current.push({ role: "model", parts: [{ text: aiTextResponse }] });
             setMessages(prev => [...prev, { from: 'ai', text: aiTextResponse }]);
             
+            // Lógica para tocar o áudio recebido do backend (requer expo-av)
+            // const { Sound } = require('expo-av');
+            // const { sound } = await Sound.createAsync({ uri: `data:audio/mpeg;base64,${audioBase64}` });
+            // await sound.playAsync();
+
             if (aiTextResponse.includes("desenhar as linhas do seu roteiro")) {
                 setTimeout(() => onComplete({ conversation: conversationHistory.current }), 1000);
             }
+
         } catch (error) {
             console.error('Erro na conversa:', error);
             setMessages(prev => [...prev, { from: 'ai', text: 'Meu caro, parece que tivemos uma pequena falha na estrutura. Podemos tentar de novo?' }]);
@@ -76,8 +71,11 @@ const VoiceOnboarding = ({ onComplete }) => {
             setStatus('idle');
         }
     };
-
+    
+    // Função para simular o reconhecimento de voz
     const handleMicPress = () => {
+      // Em um app real, aqui você iniciaria o Voice.start('pt-BR')
+      // e o resultado seria passado para handleConversation no evento onSpeechResults
       const simulatedUserText = "Vim para um show de rock e ficarei 3 dias. Gosto de parques e comida japonesa.";
       setMessages(prev => [...prev, { from: 'user', text: simulatedUserText }]);
       handleConversation(simulatedUserText);
@@ -101,15 +99,13 @@ const VoiceOnboarding = ({ onComplete }) => {
                 <TouchableOpacity onPress={handleMicPress} style={styles.micButton} disabled={status !== 'idle'}>
                     {status === 'thinking' ? <ActivityIndicator color="#fff" /> : <MicIcon />}
                 </TouchableOpacity>
-                {/* CORREÇÃO: Template literal com crases para o status */}
                 <Text style={styles.statusText}>{status === 'idle' ? 'Pressione para falar' : `${status}...`}</Text>
             </View>
         </SafeAreaView>
     );
 };
 
-// Renomeei os componentes para não haver conflito de nomes
-const GeneratingScreenVoice = () => (
+const GeneratingScreen = () => (
     <View style={[styles.container, styles.center]}>
         <ActivityIndicator size="large" color="#007bff" />
         <Text style={styles.generatingTitle}>Desenhando seu projeto...</Text>
@@ -117,9 +113,9 @@ const GeneratingScreenVoice = () => (
     </View>
 );
 
-const ItineraryScreenVoice = ({ itinerary }) => {
+const ItineraryScreen = ({ itinerary }) => {
     if (!itinerary) {
-        return <GeneratingScreenVoice />;
+        return <GeneratingScreen />;
     }
     return (
         <SafeAreaView style={styles.container}>
@@ -133,7 +129,6 @@ const ItineraryScreenVoice = ({ itinerary }) => {
                                 <Text style={styles.activityTime}>{atv.hora}</Text>
                                 <Text style={styles.activityTitle}>{atv.titulo}</Text>
                                 {atv.seguranca && (
-                                    // CORREÇÃO: Template literal para o estilo dinâmico
                                     <View style={[styles.alertBox, styles[`alert${atv.seguranca.nivel}`]]}>
                                         <Text style={styles.alertTitle}>Vigía Urbano: Alerta {atv.seguranca.nivel}</Text>
                                         <Text style={styles.alertText}>{atv.seguranca.recomendacoes}</Text>
@@ -148,11 +143,12 @@ const ItineraryScreenVoice = ({ itinerary }) => {
     );
 };
 
-const SplashScreenVoice = ({ onFinish }) => {
+const SplashScreenComponent = ({ onFinish }) => {
     useEffect(() => {
         const timer = setTimeout(onFinish, 2500);
         return () => clearTimeout(timer);
     }, [onFinish]);
+
     return (
         <View style={[styles.container, styles.center, { backgroundColor: '#007bff' }]}>
             <Text style={styles.splashTitle}>SampAI</Text>
@@ -160,57 +156,10 @@ const SplashScreenVoice = ({ onFinish }) => {
     );
 };
 
-
-// --- COMPONENTE PRINCIPAL UNIFICADO ---
 export default function App() {
-  // Estados de AMBAS as versões
-  const [isLoading, setIsLoading] = useState(true);
-  const [formStep, setFormStep] = useState(0);
-  const [userAnswers, setUserAnswers] = useState({});
-  const [generatedItinerary, setGeneratedItinerary] = useState(null);
   const [appState, setAppState] = useState('splash'); // splash, onboarding, loading, main
   const [itinerary, setItinerary] = useState(null);
 
-  // Hooks movidos para dentro do componente App
-  let [fontsLoaded, fontError] = useFonts({
-    Poppins_700Bold,
-    Montserrat_500Medium,
-    Montserrat_400Regular,
-  });
-
-  useEffect(() => {
-    const originalConsoleError = console.error;
-    console.error = (...args) => {
-      const errorMessage = args.join(' ');
-      if (errorMessage.includes('REQUEST_DENIED') && errorMessage.includes('Billing')) {
-        console.log('⚠️ API do Google Places requer billing - usando dados locais');
-        return;
-      }
-      originalConsoleError(...args);
-    };
-    return () => {
-      console.error = originalConsoleError;
-    };
-  }, []);
-
-  if (fontError) {
-    console.error('❌ Erro ao carregar fontes:', fontError);
-  }
-
-  // --- Funções da lógica de FORMULÁRIO ---
-  const handleAnswer = (step, answer) => {
-    console.log(`Resposta para ${step}:`, answer);
-    setUserAnswers(prev => ({ ...prev, [step]: answer }));
-  };
-
-  const handleGenerateComplete = (itinerary) => {
-    if (itinerary) {
-      setGeneratedItinerary(itinerary);
-    }
-    setFormStep(9);
-  };
-  
-  // --- Função da lógica de VOZ ---
   const handleOnboardingComplete = async (userData) => {
     setAppState('loading');
     try {
@@ -230,66 +179,44 @@ export default function App() {
         const roteiroData = await roteiroResponse.json();
         setItinerary(roteiroData);
         setAppState('main');
+
     } catch (error) {
         console.error("Erro ao finalizar onboarding e gerar roteiro:", error);
-        setAppState('onboarding');
+        setAppState('onboarding'); // Volta ao onboarding em caso de erro
     }
   };
-
-  // --- Renderizadores de CADA fluxo ---
   
-  // Lógica de renderização do FLUXO DE FORMULÁRIO (mantida)
-  const renderFormStep = () => {
-    switch (formStep) {
-      case 0: return <OnboardingScreen onNext={() => setFormStep(1)} />;
-      case 1: return <RegionScreen onNext={(answer) => { handleAnswer('region', answer); setFormStep(2); }} onBack={() => setFormStep(0)} />;
-      case 2: return <FoodScreen onNext={(answer) => { handleAnswer('food', answer); setFormStep(3); }} onBack={() => setFormStep(1)} />;
-      case 3: return <ActivitiesScreen onNext={(answer) => { handleAnswer('activities', answer); setFormStep(4); }} onBack={() => setFormStep(2)} />;
-      case 4: return <AgeScreen onNext={(answer) => { handleAnswer('age', answer); setFormStep(5); }} onBack={() => setFormStep(3)} />;
-      case 5: return <DurationScreen onNext={(answer) => { handleAnswer('duration', answer); setFormStep(6); }} onBack={() => setFormStep(4)} />;
-      case 6: return <StayScreen onNext={(answer) => { handleAnswer('stay', answer); setFormStep(7); }} onBack={() => setFormStep(5)} />;
-      case 7: return <ScheduleScreen onNext={(answer) => { handleAnswer('schedule', answer); setFormStep(8); }} onBack={() => setFormStep(6)} />;
-      case 8: return <GeneratingScreenComponent onComplete={handleGenerateComplete} userAnswers={userAnswers} />;
-      case 9: return <ItineraryScreenComponent generatedItinerary={generatedItinerary} />;
-      case 10: return <ProfileScreen />;
-      default: return <ItineraryScreenComponent generatedItinerary={generatedItinerary} />;
-    }
-  };
-
-  // Lógica de renderização do FLUXO DE VOZ (mantida)
   const renderContent = () => {
       switch (appState) {
-        case 'splash': return <SplashScreenVoice onFinish={() => setAppState('onboarding')} />;
-        case 'onboarding': return <VoiceOnboarding onComplete={handleOnboardingComplete} />;
-        case 'loading': return <GeneratingScreenVoice />;
-        case 'main': return <ItineraryScreenVoice itinerary={itinerary} />;
-        default: return <SplashScreenVoice onFinish={() => setAppState('onboarding')} />;
+          case 'splash':
+              return <SplashScreenComponent onFinish={() => setAppState('onboarding')} />;
+          case 'onboarding':
+              return <VoiceOnboarding onComplete={handleOnboardingComplete} />;
+          case 'loading':
+              return <GeneratingScreen />;
+          case 'main':
+              // Aqui você integraria sua navegação principal (Tab Navigator, etc.)
+              // Por enquanto, exibimos diretamente a tela do roteiro.
+              return <ItineraryScreen itinerary={itinerary} />;
+          default:
+              return <SplashScreenComponent onFinish={() => setAppState('onboarding')} />;
       }
   };
 
-  if (isLoading && !fontsLoaded) {
-    // Usando o SplashScreen importado para a lógica de formulário como padrão
-    return <SplashScreen onFinishLoading={() => setIsLoading(false)} />;
-  }
-  
-  // --- Retorno final do Componente App ---
-  // Ele pode retornar um ou outro fluxo.
-  // Atualmente está retornando o FLUXO DE VOZ (renderContent).
-  // Para usar o FLUXO DE FORMULÁRIO, troque `renderContent()` por `renderFormStep()`.
   return (
-    <ThemeProvider>
-      {renderContent()}
-    </ThemeProvider>
+    // <ThemeProvider> // Descomente se você estiver usando seu ThemeProvider
+      <View style={styles.container}>
+        {renderContent()}
+      </View>
+    // </ThemeProvider>
   );
 }
 
-
-// Estilos (mantidos e unificados)
 const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: '#f0f4f7', paddingTop: Platform.OS === 'android' ? 25 : 0 },
     center: { justifyContent: 'center', alignItems: 'center', padding: 20 },
     splashTitle: { fontSize: 48, fontWeight: 'bold', color: '#fff' },
-    chatContainer: { padding: 10, paddingBottom: 120 },
+    chatContainer: { padding: 10, paddingBottom: 20 },
     messageBubble: { padding: 12, borderRadius: 18, marginBottom: 10, maxWidth: '85%', flexDirection: 'row', alignItems: 'center' },
     aiBubble: { backgroundColor: '#fff', alignSelf: 'flex-start', borderTopLeftRadius: 5, elevation: 1 },
     userBubble: { backgroundColor: '#007bff', alignSelf: 'flex-end', borderTopRightRadius: 5, elevation: 1 },
@@ -315,3 +242,4 @@ const styles = StyleSheet.create({
     alertTitle: { fontWeight: 'bold', marginBottom: 5 },
     alertText: {},
 });
+
