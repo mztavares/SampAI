@@ -60,7 +60,7 @@ async function getConnection() {
 
 // ===== MUDANÇA 2: Conexão com Firestore usando a nova variável de ambiente genérica =====
 try {
-  const serviceAccountString = process.env.GCP_CREDENTIALS; // Usando a nova credencial
+  const serviceAccountString = process.env.GOOGLE_APPLICATION_CREDENTIALS; // Usando a nova credencial
   if (serviceAccountString) {
     const serviceAccount = JSON.parse(serviceAccountString);
     initializeApp({ credential: cert(serviceAccount) });
@@ -146,7 +146,7 @@ app.post('/api/chat', async (req, res) => {
 app.post('/api/finalizar-onboarding', async (req, res) => {
     const { conversation } = req.body;
     // Corrigido para verificar a variável de ambiente correta
-    if (!process.env.GCP_CREDENTIALS) {
+    if (!process.env.GOOGLE_APPLICATION_CREDENTIALS) {
       console.warn('Firestore desabilitado, pulando salvamento da conversa.');
       return res.status(200).json({ message: 'Conversa não salva (Firestore desabilitado).', conversationId: `simulado_${Date.now()}` });
     }
