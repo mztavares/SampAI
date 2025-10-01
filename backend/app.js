@@ -84,39 +84,43 @@ try {
 
 // No seu arquivo backend/app.js, substitua a rota /api/chat por esta:
 
+// No seu arquivo backend/app.js, substitua a rota /api/chat por esta:
+
 app.post('/api/chat', async (req, res) => {
     console.log("--> [INÍCIO] Requisição recebida em /api/chat.");
     const { conversationHistory, systemPrompt } = req.body;
 
     if (!conversationHistory || !systemPrompt) {
-        console.error("--> [ERRO] Requisição incompleta. Faltando conversationHistory ou systemPrompt.");
+        console.error("--> [ERRO] Requisição incompleta.");
         return res.status(400).json({ error: 'Histórico da conversa e prompt do sistema são obrigatórios.' });
     }
     
     try {
-        let contentsToSend = [...conversationHistory]; // Usamos uma cópia para segurança
+        let contentsToSend = [...conversationHistory];
 
         if (contentsToSend.length === 0) {
-            console.log("--> [INFO] Histórico de conversa vazio. Criando mensagem inicial.");
-            contentsToSend.push({ role: 'user', parts: [{ text: 'Olá, por favor, apresente-se como Oscar Niemeyer e inicie nossa conversa me dando boas vindas ao aplicativo SampAI e me explique brevemente a sua proposta e objetivo dele, ou o que ele me traz de bom.' }] });
+            console.log("--> [INFO] Histórico vazio. Criando mensagem inicial.");
+            contentsToSend.push({ role: 'user', parts: [{ text: 'Olá, por favor, apresente-se como Oscar Niemeyer e inicie nossa conversa sobre São Paulo.' }] });
         }
         
-        const geminiURL = `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash-latest:generateContent`;
+        // Mantemos a v1beta, que é a correta para este formato de requisição
+        const geminiURL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent`;
 
         const requestBody = {
-            system_instruction: { // CORREÇÃO: Usando snake_case
+            // ===== A CORREÇÃO FINAL ESTÁ AQUI =====
+            systemInstruction: { // Usando o nome correto: "systemInstruction" (camelCase)
                 parts: [{ text: systemPrompt }]
             },
             contents: contentsToSend
         };
 
-        console.log("--> [INFO] Enviando para a API Gemini...");
+        console.log("--> [INFO] Enviando para a API Gemini (v1beta)...");
 
         const geminiResponse = await fetch(geminiURL, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                'x-goog-api-key': process.env.GEMINI_API_KEY // CORREÇÃO: Chave no header
+                'x-goog-api-key': process.env.GEMINI_API_KEY
             },
             body: JSON.stringify(requestBody)
         });
@@ -146,7 +150,7 @@ app.post('/api/chat', async (req, res) => {
             throw new Error(`Erro na API ElevenLabs: ${errorText}`);
         }
 
-        console.log("--> [SUCESSO] Áudio recebido da API ElevenLabs. Enviando resposta para o app.");
+        console.log("--> [SUCESSO] Áudio recebido da API ElevenLabs.");
         const audioArrayBuffer = await elevenLabsResponse.arrayBuffer();
         res.json({ text: aiTextResponse, audio: Buffer.from(audioArrayBuffer).toString('base64') });
 
@@ -155,27 +159,6 @@ app.post('/api/chat', async (req, res) => {
         res.status(500).json({ error: 'Falha ao processar a conversa.' });
     }
 });
-
-app.post('/api/finalizar-onboarding', async (req, res) => {
-    const { conversation } = req.body;
-    if (!process.env.FIREBASE_CREDENTIALS_PATH) {
-      console.warn('Firestore desabilitado, pulando salvamento da conversa.');
-      return res.status(200).json({ message: 'Conversa não salva (Firestore desabilitado).', conversationId: `simulado_${Date.now()}` });
-    }
-    try {
-        const firestoreDB = getFirestore();
-        const docRef = await firestoreDB.collection('conversas').add({
-            createdAt: new Date(),
-            conversation: conversation
-            // Futuramente, adicione aqui o ID do usuário logado (ex: userId: req.userId)
-        });
-        res.status(200).json({ message: 'Conversa salva com sucesso!', conversationId: docRef.id });
-    } catch (error) {
-        console.error('❌ Erro ao salvar conversa no Firestore:', error);
-        res.status(500).json({ error: 'Não foi possível salvar a conversa.' });
-    }
-});
-
 // Esta rota agora simula a leitura do Firestore e a lógica do Vigía Urbano
 app.post('/api/gerar-roteiro', async (req, res) => {
     const { conversationId } = req.body;
