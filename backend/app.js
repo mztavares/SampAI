@@ -82,52 +82,56 @@ try {
 
 
 
+// No seu arquivo backend/app.js, substitua a rota /api/chat por esta:
+
 app.post('/api/chat', async (req, res) => {
-        const { conversationHistory, systemPrompt } = req.body;
+    console.log("--> [INÍCIO] Requisição recebida em /api/chat.");
+    const { conversationHistory, systemPrompt } = req.body;
 
     if (!conversationHistory || !systemPrompt) {
+        console.error("--> [ERRO] Requisição incompleta. Faltando conversationHistory ou systemPrompt.");
         return res.status(400).json({ error: 'Histórico da conversa e prompt do sistema são obrigatórios.' });
     }
-
+    
     try {
+        let contentsToSend = [...conversationHistory]; // Usamos uma cópia para segurança
 
-        let contentsToSend = conversationHistory;
-
-        // ===== LÓGICA CRÍTICA ADICIONADA AQUI =====
-        // Se o histórico da conversa estiver vazio (primeira chamada do app),
-        // a API do Gemini falha. Então, criamos uma "primeira fala" para iniciar.
         if (contentsToSend.length === 0) {
-            // A API espera que o usuário fale primeiro, então simulamos isso.
-            // O System Prompt ainda guiará a resposta do modelo.
-            contentsToSend = [{ role: 'user', parts: [{ text: 'Olá, por favor, apresente-se como Oscar Niemeyer e inicie nossa conversa me dando boas vindas ao aplicativo SampAI e me explique brevemente a sua proposta e objetivo dele, ou o que ele me traz de bom.' }] }];
+            console.log("--> [INFO] Histórico de conversa vazio. Criando mensagem inicial.");
+            contentsToSend.push({ role: 'user', parts: [{ text: 'Olá, por favor, apresente-se como Oscar Niemeyer e inicie nossa conversa me dando boas vindas ao aplicativo SampAI e me explique brevemente a sua proposta e objetivo dele, ou o que ele me traz de bom.' }] });
         }
-        // ===========================================
+        
         const geminiURL = `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash-latest:generateContent`;
 
         const requestBody = {
-            // Mudei o formato da Instrução do sistema no formato esperado pela API
-            system_instruction: {
-                parts: [
-                    { text: systemPrompt }
-                ]
+            system_instruction: { // CORREÇÃO: Usando snake_case
+                parts: [{ text: systemPrompt }]
             },
-
-            // Histórico da conversa já no formato Content - Aqui mantive o mesmo
-            contents: conversationHistory
+            contents: contentsToSend
         };
+
+        console.log("--> [INFO] Enviando para a API Gemini...");
 
         const geminiResponse = await fetch(geminiURL, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                'x-goog-api-key': process.env.GEMINI_API_KEY // Adicionei a chave de api como Header e nao como parametro na URL
+                'x-goog-api-key': process.env.GEMINI_API_KEY // CORREÇÃO: Chave no header
             },
             body: JSON.stringify(requestBody)
         });
-        if (!geminiResponse.ok) throw new Error(`Erro na API Gemini: ${await geminiResponse.text()}`);
+
+        if (!geminiResponse.ok) {
+            const errorText = await geminiResponse.text();
+            console.error('--> [ERRO] Erro retornado pela API Gemini:', errorText);
+            throw new Error(`Erro na API Gemini: ${errorText}`);
+        }
+
+        console.log("--> [SUCESSO] Resposta recebida da API Gemini.");
         const geminiData = await geminiResponse.json();
         const aiTextResponse = geminiData.candidates[0].content.parts[0].text;
 
+        console.log("--> [INFO] Enviando para a API ElevenLabs...");
         const VOICE_ID = process.env.ELEVENLABS_VOICE_ID || 'fxQNo5MuMrwdFQ3f5TBM';
         const elevenLabsURL = `https://api.elevenlabs.io/v1/text-to-speech/${VOICE_ID}`;
         const elevenLabsResponse = await fetch(elevenLabsURL, {
@@ -135,12 +139,19 @@ app.post('/api/chat', async (req, res) => {
             headers: { 'Content-Type': 'application/json', 'xi-api-key': process.env.ELEVENLABS_API_KEY },
             body: JSON.stringify({ model_id: 'eleven_multilingual_v2', text: aiTextResponse, voice_settings: { stability: 0.5, similarity_boost: 0.75 } }),
         });
-        if (!elevenLabsResponse.ok) throw new Error(`Erro na API ElevenLabs: ${await elevenLabsResponse.text()}`);
 
+        if (!elevenLabsResponse.ok) {
+            const errorText = await elevenLabsResponse.text();
+            console.error('--> [ERRO] Erro retornado pela API ElevenLabs:', errorText);
+            throw new Error(`Erro na API ElevenLabs: ${errorText}`);
+        }
+
+        console.log("--> [SUCESSO] Áudio recebido da API ElevenLabs. Enviando resposta para o app.");
         const audioArrayBuffer = await elevenLabsResponse.arrayBuffer();
         res.json({ text: aiTextResponse, audio: Buffer.from(audioArrayBuffer).toString('base64') });
+
     } catch (error) {
-        console.error('❌ Erro no endpoint /api/chat:', error);
+        console.error('--> [ERRO FATAL] Erro no endpoint /api/chat:', error);
         res.status(500).json({ error: 'Falha ao processar a conversa.' });
     }
 });
