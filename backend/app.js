@@ -90,6 +90,18 @@ app.post('/api/chat', async (req, res) => {
     }
 
     try {
+
+        let contentsToSend = conversationHistory;
+
+        // ===== LÓGICA CRÍTICA ADICIONADA AQUI =====
+        // Se o histórico da conversa estiver vazio (primeira chamada do app),
+        // a API do Gemini falha. Então, criamos uma "primeira fala" para iniciar.
+        if (contentsToSend.length === 0) {
+            // A API espera que o usuário fale primeiro, então simulamos isso.
+            // O System Prompt ainda guiará a resposta do modelo.
+            contentsToSend = [{ role: 'user', parts: [{ text: 'Olá, por favor, apresente-se como Oscar Niemeyer e inicie nossa conversa me dando boas vindas ao aplicativo SampAI e me explique brevemente a sua proposta e objetivo dele, ou o que ele me traz de bom.' }] }];
+        }
+        // ===========================================
         const geminiURL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent`;
 
         const requestBody = {
