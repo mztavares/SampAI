@@ -104,7 +104,7 @@ app.post('/api/chat', async (req, res) => {
         }
         
         // Mantemos a v1beta, que é a correta para este formato de requisição
-        const geminiURL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent`;
+        const geminiURL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent`;
 
         const requestBody = {
             // ===== A CORREÇÃO FINAL ESTÁ AQUI =====
