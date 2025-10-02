@@ -1,0 +1,18 @@
+{
+  "functions": {
+    "api/index.js": {
+      "runtime": "@vercel/node"
+    }
+  },
+  "rewrites": [
+    {
+      "source": "/api/(.*)",
+      "destination": "/api"
+    }
+  ],
+  "env": {
+    "DB_USER": "rm98044",
+    "DB_PASSWORD": "070305",
+    "DB_CONNECT_STRING": "oracle.fiap.com.br:1521/ORCL"
+  }
+}
