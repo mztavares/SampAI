@@ -11,7 +11,7 @@ export const API_CONFIG = {
   // URL atual baseada no ambiente
   // Para desenvolvimento local: use seu IP local
   // Para produção: use o URL do servidor deployado
-  BASE_URL: 'https://projeto-samp-gyho9lurb-francisco-s-projects-860b9a16.vercel.app'
+  BASE_URL: 'https://projeto-samp-kx6ctlbu6-francisco-s-projects-860b9a16.vercel.app'
 };
 
 // Configurações de timeout
