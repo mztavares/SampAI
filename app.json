@@ -35,7 +35,14 @@
       "favicon": "./assets/favicon.png"
     },
     "plugins": [
-      "expo-font"
-    ]
+    "expo-font",
+  [
+    "@react-native-voice/voice",
+    {
+      "microphonePermission": "Allow this app to access your microphone for voice recognition",
+      "speechRecognitionPermission": "Allow this app to process your speech for text conversion"
+    }
+  ]
+]
   }
 }

@@ -24,9 +24,27 @@ const VoiceOnboarding = ({ onComplete }) => {
     const conversationHistory = useRef([]);
     const scrollViewRef = useRef();
 
+    
+
     useEffect(() => {
-        // Mensagem inicial do Niemeyer
-        handleConversation(null, true); 
+    Voice.onSpeechResults = async (event) => {
+        const text = event.value[0]; // primeiro resultado reconhecido
+        setMessages(prev => [...prev, { from: 'user', text }]);
+        try {
+            await Voice.stop();
+        } catch (e) {
+            console.warn("Erro ao parar reconhecimento:", e);
+        }
+        handleConversation(text); // só aqui chama a conversa
+    };
+
+    Voice.onSpeechError = (error) => {
+        console.error("Erro no reconhecimento de voz:", error);
+    };
+
+    return () => {
+        Voice.destroy().then(Voice.removeAllListeners);
+    };
     }, []);
 
     const handleConversation = async (userText, isInitial = false) => {
@@ -73,12 +91,13 @@ const VoiceOnboarding = ({ onComplete }) => {
     };
     
     // Função para simular o reconhecimento de voz
-    const handleMicPress = () => {
-      // Em um app real, aqui você iniciaria o Voice.start('pt-BR')
-      // e o resultado seria passado para handleConversation no evento onSpeechResults
-      const simulatedUserText = "Vim para um show de rock e ficarei 3 dias. Gosto de parques e comida japonesa.";
-      setMessages(prev => [...prev, { from: 'user', text: simulatedUserText }]);
-      handleConversation(simulatedUserText);
+    const handleMicPress = async () => {
+    try {
+        setStatus('listening');
+        await Voice.start('pt-BR'); // inicia captação do áudio
+    } catch (e) {
+        console.error("Erro ao iniciar reconhecimento de voz:", e);
+    }
     };
 
     return (
