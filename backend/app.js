@@ -417,11 +417,7 @@ app.post('/api/roteiros', authenticateUser, async (req, res) => {
       VALUES (:idRoteiro, :alerta)
     `;
 
-    const bindsAlertas = {
-      idRoteiro: id_roteiro,
-      alerta: aiTextResponse
-    };
-    
+
     const binds = {
       userId: userId,
       titulo: titulo,
@@ -440,6 +436,12 @@ app.post('/api/roteiros', authenticateUser, async (req, res) => {
 
     const aiTextResponse = resultAi.response.candidates[0].content.parts[0].text;
     console.log("--> [SUCESSO] Resposta recebida da API Vertex AI.");
+
+    const bindsAlertas = {
+      idRoteiro: id_roteiro,
+      alerta: aiTextResponse
+    };
+    
     const result = await connection.execute(sql, binds, { autoCommit: true });
     await connection.execute(sqlAlertas, bindsAlertas, { autoCommit: true });
     
