@@ -374,16 +374,7 @@ app.post('/api/roteiros', authenticateUser, async (req, res) => {
     });
     const chat = generativeModel.startChat();
 
-    console.log("--> [INFO] Enviando para a API Vertex AI...");
-    const resultAi = await chat.sendMessage(lastUserMessage);
 
-    if (!resultAi.response || !resultAi.response.candidates || resultAi.response.candidates.length === 0) {
-        console.error("--> [ERRO] A API Vertex AI respondeu, mas sem conteúdo válido.", resultAi);
-        throw new Error('Resposta inválida da API Vertex AI.');
-    }
-
-    const aiTextResponse = resultAi.response.candidates[0].content.parts[0].text;
-    console.log("--> [SUCESSO] Resposta recebida da API Vertex AI.");
         
     // Validação básica
     if (!titulo || !locais) {
@@ -438,7 +429,17 @@ app.post('/api/roteiros', authenticateUser, async (req, res) => {
       locais: JSON.stringify(locais),
       idRoteiro: id_roteiro
     };
-    
+
+    console.log("--> [INFO] Enviando para a API Vertex AI...");
+    const resultAi = await chat.sendMessage(binds.titulo + ". Locais: " + binds.locais);
+
+    if (!resultAi.response || !resultAi.response.candidates || resultAi.response.candidates.length === 0) {
+        console.error("--> [ERRO] A API Vertex AI respondeu, mas sem conteúdo válido.", resultAi);
+        throw new Error('Resposta inválida da API Vertex AI.');
+    }
+
+    const aiTextResponse = resultAi.response.candidates[0].content.parts[0].text;
+    console.log("--> [SUCESSO] Resposta recebida da API Vertex AI.");
     const result = await connection.execute(sql, binds, { autoCommit: true });
     await connection.execute(sqlAlertas, bindsAlertas, { autoCommit: true });
     
