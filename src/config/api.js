@@ -11,7 +11,7 @@ export const API_CONFIG = {
   // URL atual baseada no ambiente
   // Para desenvolvimento local: use seu IP local
   // Para produção: use o URL do servidor deployado
-  BASE_URL: 'https://nice-hounds-repair.loca.lt'
+  BASE_URL: 'https://sampai.onrender.com'
 };
 
 // Configurações de timeout
