@@ -3,7 +3,7 @@ const oracledb = require('oracledb');
 const bcrypt = require('bcryptjs');
 const emailValidator = require('email-validator');
 require('dotenv').config();
-
+const { VertexAI } = require('@google-cloud/vertexai');
 
 
 const app = express();
