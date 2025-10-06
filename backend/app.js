@@ -413,7 +413,7 @@ app.post('/api/roteiros', authenticateUser, async (req, res) => {
     `;
 
     const sqlAlertas = `
-      INSERT INTO SEGURANCA_PUBLICA_ALERTAS (ID_ROTEIRO, ALERTA)
+      INSERT INTO SEGURANCA_PUBLICA_ALERTAS (ID_ROTEIRO_TMP, ALERTA)
       VALUES (:idRoteiro, :alerta)
     `;
 
