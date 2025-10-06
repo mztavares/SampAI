@@ -443,7 +443,9 @@ app.post('/api/roteiros', authenticateUser, async (req, res) => {
     };
     
     const result = await connection.execute(sql, binds, { autoCommit: true });
+    console.log('✅ Roteiro salvo no Oracle:', titulo);
     await connection.execute(sqlAlertas, bindsAlertas, { autoCommit: true });
+    console.log('✅ Alerta salvo no Oracle:', aiTextResponse);
     
     console.log('✅ Roteiro salvo no Oracle:', titulo);
     
