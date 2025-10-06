@@ -6,3 +6,4 @@ backend/database.sqlite
 backend/config.env
 .expo/
 .vercel
+android/

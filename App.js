@@ -72,7 +72,7 @@ export default function App() {
   const renderFormStep = () => {
     switch (formStep) {
       case 0:
-        return <OnboardingScreen onNext={() => setFormStep(1)} />;
+        return <OnboardingScreen onNext={(answers) => { setUserAnswers(answers); setFormStep(8); }} />;
       case 1:
         return <RegionScreen onNext={(answer) => { handleAnswer('region', answer); setFormStep(2); }} onBack={() => setFormStep(0)} />;
       case 2:

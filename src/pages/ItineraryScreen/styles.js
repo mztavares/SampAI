@@ -43,17 +43,6 @@ export const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 10,
   },
-  profileButton: {
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 8,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  profileButtonText: {
-    fontSize: 18,
-    fontFamily: 'Poppins_600SemiBold',
-  },
   mainTitle: {
     fontFamily: 'Poppins_700Bold',
     fontSize: 22,
@@ -86,6 +75,14 @@ export const styles = StyleSheet.create({
     color: COLORS.textSecondary,
     marginBottom: 8,
     marginLeft: 4,
+  },
+  dayTitle: {
+    fontFamily: 'Poppins_700Bold',
+    fontSize: 18,
+    color: COLORS.roteiro,
+    paddingBottom: 8,
+    textAlign: 'center',
+    marginBottom: 16,
   },
   dayTitleInput: {
     fontFamily: 'Poppins_700Bold',
@@ -1542,11 +1539,84 @@ export const styles = StyleSheet.create({
   sectionContainer: {
     marginBottom: 30,
   },
+  sectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 15,
+  },
   sectionTitle: {
     fontSize: 18,
     fontWeight: 'bold',
     color: COLORS.text,
-    marginBottom: 15,
+  },
+  sectionCounter: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: COLORS.textSecondary,
+    backgroundColor: COLORS.cardBackground,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: COLORS.optionBorder,
+  },
+  emptySection: {
+    backgroundColor: COLORS.cardBackground,
+    padding: 20,
+    borderRadius: 12,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: COLORS.optionBorder,
+  },
+  emptyText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: COLORS.textSecondary,
+    marginBottom: 8,
+  },
+  emptySubtext: {
+    fontSize: 14,
+    color: COLORS.textSecondary,
+    textAlign: 'center',
+    lineHeight: 20,
+  },
+  routesList: {
+    gap: 12,
+  },
+  routeCard: {
+    backgroundColor: COLORS.cardBackground,
+    padding: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: COLORS.optionBorder,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  routeCardHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 8,
+  },
+  routeCardName: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: COLORS.text,
+    flex: 1,
+    marginRight: 12,
+  },
+  routeCardDate: {
+    fontSize: 12,
+    color: COLORS.textSecondary,
+  },
+  routeCardLocations: {
+    fontSize: 14,
+    color: COLORS.textSecondary,
+    fontWeight: '500',
   },
   emptySection: {
     backgroundColor: COLORS.cardBackground,
@@ -1850,5 +1920,90 @@ export const styles = StyleSheet.create({
     color: 'white',
     fontSize: 16,
     fontFamily: 'Poppins_600SemiBold',
+  },
+
+  // Estilos para favoritos melhorados
+  favoritesList: {
+    gap: 12,
+  },
+  favoriteCard: {
+    borderRadius: 12,
+    borderWidth: 1,
+    padding: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  favoriteCardContent: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+  },
+  favoriteCardMain: {
+    flex: 1,
+    marginRight: 12,
+  },
+  favoriteCardName: {
+    fontSize: 16,
+    fontFamily: 'Poppins_600SemiBold',
+    marginBottom: 4,
+    lineHeight: 22,
+  },
+  favoriteCardAddress: {
+    fontSize: 14,
+    fontFamily: 'Poppins_400Regular',
+    marginBottom: 6,
+    lineHeight: 18,
+  },
+  favoriteCardRatingContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  favoriteCardRating: {
+    fontSize: 14,
+    fontFamily: 'Poppins_600SemiBold',
+  },
+  favoriteCardRatingText: {
+    fontSize: 14,
+    fontFamily: 'Poppins_400Regular',
+    marginLeft: 2,
+  },
+  favoriteRemoveButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  favoriteRemoveText: {
+    fontSize: 16,
+  },
+
+  // Estilos para o botão Iniciar Rota
+  startRouteContainer: {
+    position: 'absolute',
+    bottom: 20,
+    left: 20,
+    right: 20,
+    zIndex: 1000,
+  },
+  startRouteButton: {
+    paddingVertical: 16,
+    paddingHorizontal: 24,
+    borderRadius: 25,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+  startRouteButtonText: {
+    fontSize: 18,
+    fontFamily: 'Poppins_700Bold',
+    fontWeight: 'bold',
   },
 });

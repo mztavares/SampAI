@@ -26,14 +26,21 @@
         "googleMaps": {
           "apiKey": "AIzaSyC2JhGeNqfhzqsH7LmHQRiRC4HTrHQDCOg"
         }
-      }
+      },
+      "package": "com.anonymous.snack3384a16e3f45439294808f5850e0ce1e"
     },
     "web": {
       "favicon": "./assets/favicon.png"
     },
     "plugins": [
       "expo-font",
-      "expo-asset"
-    ]
+      "expo-asset",
+      [
+        "@react-native-voice/voice",
+        {
+          "microphonePermission": "Allow this app to access your microphone for voice recognition",
+          "speechRecognitionPermission": "Allow this app to process your speech for text conversion"
+      }
+    ]]
   }
 }

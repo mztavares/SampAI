@@ -1,19 +1,31 @@
 {
-  "name": "sampai-backend",
+  "name": "sampai-frontend",
   "version": "1.0.0",
-  "description": "SampAI Backend API",
-  "main": "api/index.js",
+  "description": "SampAI Frontend - Sistema de Roteiros Inteligentes",
+  "main": "index.js",
   "scripts": {
-    "start": "node api/index.js",
-    "dev": "nodemon api/index.js"
+    "start": "expo start",
+    "android": "expo run:android",
+    "ios": "expo run:ios",
+    "web": "expo start --web"
   },
   "dependencies": {
-    "express": "^4.18.2",
-    "oracledb": "^6.0.3",
-    "bcryptjs": "^2.4.3",
-    "email-validator": "^2.0.0"
+    "@expo-google-fonts/montserrat": "^0.2.3",
+    "@expo-google-fonts/poppins": "^0.2.3",
+    "@expo/vector-icons": "^14.0.0",
+    "@react-native-async-storage/async-storage": "1.23.1",
+    "@react-native-voice/voice": "^3.2.4",
+    "expo": "~51.0.0",
+    "expo-av": "~14.0.7",
+    "expo-font": "~12.0.10",
+    "expo-location": "~17.0.1",
+    "react": "18.2.0",
+    "react-native": "0.74.5",
+    "react-native-maps": "1.14.0",
+    "react-native-svg": "15.2.0"
   },
-  "engines": {
-    "node": "22.x"
-  }
+  "devDependencies": {
+    "@babel/core": "^7.20.0"
+  },
+  "private": true
 }

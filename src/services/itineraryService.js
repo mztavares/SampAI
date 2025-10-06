@@ -82,7 +82,7 @@ export const generateItinerary = async (userAnswers) => {
       if (apiResult && apiResult.length > 0) {
         console.log('✅ Roteiro gerado pela API:', apiResult.length, 'locais');
         return {
-          name: `Roteiro personalizado para ${userAnswers.activities || 'São Paulo'}`,
+          name: `Roteiro do SampAI`,
           items: apiResult,
           totalDuration: apiResult.reduce((sum, loc) => sum + (loc.duration || 120), 0),
           userAnswers: userAnswers

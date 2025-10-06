@@ -69,7 +69,11 @@ class ApiService {
       return data;
 
     } catch (error) {
-      console.error(`❌ API Error: ${endpoint}`, error);
+      // Não logar erros esperados de favoritos
+      if (!endpoint.includes('/api/favoritos') || 
+          !error.message.includes('já está nos favoritos')) {
+        console.error(`❌ API Error: ${endpoint}`, error);
+      }
       
       // Tratar erros de rede
       if (error.name === 'TypeError' && error.message.includes('Network request failed')) {
@@ -82,24 +86,90 @@ class ApiService {
 
   // Métodos de autenticação
   async register(userData) {
-    return this.request('/api/register', {
-      method: 'POST',
-      body: JSON.stringify(userData),
-    });
+    try {
+      const url = `${this.baseURL}/api/register`;
+      const config = {
+        method: 'POST',
+        headers: DEFAULT_HEADERS,
+        body: JSON.stringify(userData),
+      };
+
+      console.log(`🌐 API Request: POST ${url}`);
+
+      const response = await fetch(url, config);
+      const data = await response.json();
+
+      if (!response.ok) {
+        // Para registro, não tratar 401 como sessão expirada
+        throw new Error(data.message || `HTTP ${response.status}`);
+      }
+
+      if (data.success && data.data.id) {
+        // Usar o ID do usuário como token por simplicidade
+        await this.setToken(data.data.id.toString());
+      }
+
+      console.log(`✅ API Response: ${url}`, data);
+      return data;
+
+    } catch (error) {
+      // Não logar erros de registro esperados
+      if (!error.message.includes('Este email já está em uso') && 
+          !error.message.includes('Formato de email inválido') &&
+          !error.message.includes('Todos os campos são obrigatórios')) {
+        console.error(`❌ API Error: /api/register`, error);
+      }
+      
+      // Tratar erros de rede
+      if (error.name === 'TypeError' && error.message.includes('Network request failed')) {
+        throw new Error(ERROR_MESSAGES.NETWORK_ERROR);
+      }
+      
+      throw error;
+    }
   }
 
   async login(email, password) {
-    const response = await this.request('/api/login', {
-      method: 'POST',
-      body: JSON.stringify({ email, senha: password }),
-    });
+    try {
+      const url = `${this.baseURL}/api/login`;
+      const config = {
+        method: 'POST',
+        headers: DEFAULT_HEADERS,
+        body: JSON.stringify({ email, senha: password }),
+      };
 
-    if (response.success && response.data.id) {
-      // Usar o ID do usuário como token por simplicidade
-      await this.setToken(response.data.id.toString());
+      console.log(`🌐 API Request: POST ${url}`);
+
+      const response = await fetch(url, config);
+      const data = await response.json();
+
+      if (!response.ok) {
+        // Para login, não tratar 401 como sessão expirada
+        throw new Error(data.message || `HTTP ${response.status}`);
+      }
+
+      if (data.success && data.data.id) {
+        // Usar o ID do usuário como token por simplicidade
+        await this.setToken(data.data.id.toString());
+      }
+
+      console.log(`✅ API Response: ${url}`, data);
+      return data;
+
+    } catch (error) {
+      // Não logar erros de autenticação esperados (email/senha inválidos)
+      if (!error.message.includes('Email ou senha inválidos') && 
+          !error.message.includes('Formato de email inválido')) {
+        console.error(`❌ API Error: /api/login`, error);
+      }
+      
+      // Tratar erros de rede
+      if (error.name === 'TypeError' && error.message.includes('Network request failed')) {
+        throw new Error(ERROR_MESSAGES.NETWORK_ERROR);
+      }
+      
+      throw error;
     }
-
-    return response;
   }
 
   async logout() {
@@ -132,7 +202,12 @@ class ApiService {
     });
   }
 
-  // Métodos de favoritos
+  async loadItinerary(itineraryId) {
+    return this.request(`/api/roteiros/${itineraryId}`, {
+      method: 'GET',
+    });
+  }
+
   async addFavorite(favoriteData) {
     return this.request('/api/favoritos', {
       method: 'POST',
@@ -140,8 +215,9 @@ class ApiService {
     });
   }
 
-  async removeFavorite(favoritoId) {
-    return this.request(`/api/favoritos/${favoritoId}`, {
+  // Métodos de favoritos
+  async removeFavorite(favoriteId) {
+    return this.request(`/api/favoritos/${favoriteId}`, {
       method: 'DELETE',
     });
   }

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, SafeAreaView, TouchableOpacity, FlatList, StatusBar, Alert, TextInput, Modal, ActivityIndicator, Image, ScrollView, PanResponder, Dimensions, KeyboardAvoidingView, Platform } from 'react-native';
-import MapView, { Marker } from 'react-native-maps';
+import { View, Text, SafeAreaView, TouchableOpacity, FlatList, StatusBar, Alert, TextInput, Modal, ActivityIndicator, Image, ScrollView, PanResponder, Dimensions, KeyboardAvoidingView, Platform, Linking } from 'react-native';
+import MapView, { Marker, Polyline } from 'react-native-maps';
 import * as Location from 'expo-location';
 import { Svg, Path } from 'react-native-svg';
 import { useTheme } from '../../contexts/ThemeContext';
@@ -115,7 +115,7 @@ const validateTimeFormat = (timeStr) => {
 
 // Função para truncar nome do roteiro
 const truncateRouteName = (name, maxLength = 30) => {
-  if (!name) return 'Roteiro Personalizado';
+  if (!name) return 'Roteiro do SampAI';
   
   // Se o nome é muito longo, trunca e adiciona "..."
   if (name.length > maxLength) {
@@ -128,7 +128,7 @@ const truncateRouteName = (name, maxLength = 30) => {
 const ItineraryScreen = ({ generatedItinerary: propItinerary }) => {
   const { theme, colors, commonStyles, toggleTheme, isDark } = useTheme();
   const [activeTab, setActiveTab] = useState('Roteiro');
-  const [dayTitle, setDayTitle] = useState(truncateRouteName(propItinerary?.name) || 'Roteiro Personalizado');
+  const [dayTitle, setDayTitle] = useState(truncateRouteName(propItinerary?.name) || 'Roteiro do SampAI');
   const [itinerary, setItinerary] = useState([]);
   const [isSearchModalVisible, setIsSearchModalVisible] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -188,15 +188,20 @@ const ItineraryScreen = ({ generatedItinerary: propItinerary }) => {
   const [registerPassword, setRegisterPassword] = useState('');
   const [registerConfirmPassword, setRegisterConfirmPassword] = useState('');
   
+  // Estados para formulário de login
+  const [loginEmail, setLoginEmail] = useState('');
+  const [loginPassword, setLoginPassword] = useState('');
+  
   // Estados para slider arrastável
   const [sliderWidth, setSliderWidth] = useState(0);
   const [isDragging, setIsDragging] = useState(false);
   const sliderRef = useRef(null);
+  const mapRef = useRef(null);
 
-  // Inicializar autenticação quando o componente carregar
-  useEffect(() => {
-    initializeAuth();
-  }, []);
+  // Não inicializar autenticação automaticamente
+  // useEffect(() => {
+  //   initializeAuth();
+  // }, []);
 
 
   const initializeAuth = async () => {
@@ -329,7 +334,12 @@ const ItineraryScreen = ({ generatedItinerary: propItinerary }) => {
           id: item.id || `item-${Date.now()}-${index}`,
           name: item.name || 'Nome não disponível',
           time: item.time || '09:00',
-          duration: item.duration || 120
+          duration: item.duration || 120,
+          // Garantir que temos place_id para favoritos
+          placeId: item.placeId || item.place_id || `generated_${Date.now()}_${index}`,
+          place_id: item.placeId || item.place_id || `generated_${Date.now()}_${index}`,
+          // Garantir que temos endereço
+          address: item.address || item.formatted_address || 'Endereço não disponível'
         };
       });
       
@@ -346,6 +356,51 @@ const ItineraryScreen = ({ generatedItinerary: propItinerary }) => {
   const checkTimeConflict = (timeToCheck) => {
     const existingLocation = itinerary.find(item => item.time === timeToCheck);
     return existingLocation;
+  };
+
+  // Função para sugerir horários alternativos
+  const suggestAlternativeTime = (originalTime) => {
+    const timeToMinutes = (timeStr) => {
+      if (!timeStr) return 0;
+      const [hours, minutes] = timeStr.split(':').map(Number);
+      return hours * 60 + minutes;
+    };
+
+    const minutesToTime = (minutes) => {
+      const hours = Math.floor(minutes / 60);
+      const mins = minutes % 60;
+      return `${String(hours).padStart(2, '0')}:${String(mins).padStart(2, '0')}`;
+    };
+
+    const originalMinutes = timeToMinutes(originalTime);
+    const occupiedTimes = itinerary.map(item => timeToMinutes(item.time)).sort((a, b) => a - b);
+    
+    // Tentar horários próximos (±30 minutos em intervalos de 15 minutos)
+    const intervals = [-30, -15, 15, 30, -45, 45, -60, 60];
+    
+    for (const interval of intervals) {
+      const newMinutes = originalMinutes + interval;
+      
+      // Verificar se está dentro do horário comercial (6:00 - 23:00)
+      if (newMinutes >= 360 && newMinutes <= 1380) { // 6:00 = 360min, 23:00 = 1380min
+        const newTime = minutesToTime(newMinutes);
+        
+        // Verificar se não há conflito
+        if (!checkTimeConflict(newTime)) {
+          return newTime;
+        }
+      }
+    }
+    
+    // Se não encontrou, sugerir próximo horário livre após o último item
+    const lastTime = Math.max(...occupiedTimes, originalMinutes);
+    const suggestedMinutes = lastTime + 60; // 1 hora após o último
+    
+    if (suggestedMinutes <= 1380) { // Antes das 23:00
+      return minutesToTime(suggestedMinutes);
+    }
+    
+    return '09:00'; // Fallback para manhã do próximo dia
   };
 
   const handleConfirmAddLocation = () => {
@@ -385,23 +440,27 @@ const ItineraryScreen = ({ generatedItinerary: propItinerary }) => {
       const conflictingLocation = checkTimeConflict(validTime);
       if (conflictingLocation) {
         console.log('⚠️ Conflito de horário detectado:', conflictingLocation.name);
+        
+        // Sugerir horário alternativo
+        const suggestedTime = suggestAlternativeTime(validTime);
+        
         Alert.alert(
-          'Conflito de Horário',
-          `Já existe um local agendado para ${validTime}: "${conflictingLocation.name}".\n\nDeseja mesmo adicionar o novo local neste horário?`,
+          'Horário Ocupado',
+          `Já existe um local agendado para ${validTime}: "${conflictingLocation.name}".\n\nSugestão: Que tal às ${suggestedTime}?`,
           [
             {
-              text: 'Cancelar',
-              style: 'cancel',
+              text: 'Usar Sugestão',
               onPress: () => {
-                console.log('📍 Usuário cancelou devido ao conflito');
+                console.log('📍 Usuário aceitou sugestão:', suggestedTime);
+                setSelectedTime(suggestedTime);
               }
             },
             {
-              text: 'Adicionar Mesmo Assim',
-              style: 'destructive',
+              text: 'Escolher Outro',
+              style: 'cancel',
               onPress: () => {
-                console.log('📍 Usuário confirmou adição mesmo com conflito');
-                addLocationToItinerary(validTime);
+                console.log('📍 Usuário vai escolher outro horário');
+                setSelectedTime('09:00');
               }
             }
           ]
@@ -431,14 +490,17 @@ const ItineraryScreen = ({ generatedItinerary: propItinerary }) => {
         time: validTime,
         duration: 120,
         icon: 'walk',
-        address: pendingLocation.address || 'Endereço não disponível',
+        address: pendingLocation.address || pendingLocation.formatted_address || 'Endereço não disponível',
         rating: pendingLocation.rating || 0,
         priceLevel: pendingLocation.priceLevel || 0,
         location: pendingLocation.location || { lat: -23.5505, lng: -46.6333 },
         photos: pendingLocation.photos || [], // Preservar fotos de forma segura
         openNow: pendingLocation.openNow || false,
         userRatingsTotal: pendingLocation.userRatingsTotal || 0,
-        types: pendingLocation.types || []
+        types: pendingLocation.types || [],
+        // Adicionar place_id para favoritos
+        placeId: pendingLocation.place_id || pendingLocation.placeId || `local_${Date.now()}`,
+        place_id: pendingLocation.place_id || pendingLocation.placeId || `local_${Date.now()}`
       };
       
       console.log('📍 Novo item criado:', {
@@ -446,7 +508,13 @@ const ItineraryScreen = ({ generatedItinerary: propItinerary }) => {
         time: newItem.time,
         hasPhotos: !!newItem.photos?.length,
         photosCount: newItem.photos?.length || 0,
-        address: newItem.address
+        address: newItem.address,
+        location: newItem.location,
+        locationLat: newItem.location?.lat,
+        locationLng: newItem.location?.lng,
+        locationLatType: typeof newItem.location?.lat,
+        locationLngType: typeof newItem.location?.lng,
+        pendingLocationOriginal: pendingLocation.location
       });
       
       // Salvar no backend apenas se usuário estiver logado
@@ -500,11 +568,44 @@ const ItineraryScreen = ({ generatedItinerary: propItinerary }) => {
         console.log('📍 Usuário não logado - adicionando apenas localmente');
       }
       
-      // Adicionar ao itinerary de forma simples
+      // Adicionar ao itinerary na posição cronológica correta
       setItinerary(prev => {
         try {
-          const newItinerary = [...prev, newItem];
+          // Função para converter horário em minutos para comparação
+          const timeToMinutes = (timeStr) => {
+            if (!timeStr) return 0;
+            const [hours, minutes] = timeStr.split(':').map(Number);
+            return hours * 60 + minutes;
+          };
+
+          const newItemMinutes = timeToMinutes(validTime);
+          
+          // Encontrar a posição correta para inserir o novo item
+          let insertIndex = prev.length; // Por padrão, adicionar no final
+          
+          for (let i = 0; i < prev.length; i++) {
+            const currentItemMinutes = timeToMinutes(prev[i].time);
+            if (newItemMinutes < currentItemMinutes) {
+              insertIndex = i;
+              break;
+            }
+          }
+          
+          // Criar novo array com o item inserido na posição correta
+          const newItinerary = [
+            ...prev.slice(0, insertIndex),
+            newItem,
+            ...prev.slice(insertIndex)
+          ];
+          
           console.log('📍 Itinerary atualizado:', newItinerary.length, 'itens');
+          console.log('📍 Novo item inserido na posição:', insertIndex, 'com horário:', validTime);
+          console.log('📍 Ordem cronológica:', newItinerary.map(item => ({
+            name: item.name,
+            time: item.time,
+            hasLocation: !!(item.location && item.location.lat && item.location.lng)
+          })));
+          
           return newItinerary;
         } catch (error) {
           console.error('💥 Erro ao atualizar itinerary:', error);
@@ -539,6 +640,30 @@ const ItineraryScreen = ({ generatedItinerary: propItinerary }) => {
       return;
     }
 
+    // Verificar se usuário está logado
+    if (!isAuthenticated) {
+      Alert.alert('Login Necessário', 'Faça login para salvar roteiros');
+      return;
+    }
+
+    // Verificar limite de roteiros salvos
+    if (savedRoutes.length >= 3) {
+      Alert.alert(
+        '🔒 SampAI Plus Necessário',
+        'Você atingiu o limite de 3 roteiros salvos do plano gratuito.\n\nAssine o SampAI Plus para roteiros ilimitados e recursos exclusivos!',
+        [
+          { text: 'Cancelar', style: 'cancel' },
+          { 
+            text: 'Assinar Plus', 
+            onPress: () => {
+              Alert.alert('SampAI Plus', 'Funcionalidade de assinatura em breve!');
+            }
+          }
+        ]
+      );
+      return;
+    }
+
     try {
       setSaving(true);
       
@@ -553,6 +678,9 @@ const ItineraryScreen = ({ generatedItinerary: propItinerary }) => {
         setShowSaveModal(false);
         setSaveTitle('');
         setSaveDescription('');
+        
+        // Atualizar lista de roteiros salvos
+        await loadUserData();
       } else {
         Alert.alert('Erro', response.message || 'Falha ao salvar roteiro');
       }
@@ -564,28 +692,203 @@ const ItineraryScreen = ({ generatedItinerary: propItinerary }) => {
     }
   };
 
+  // Função para ajustar o mapa para mostrar todos os pontos
+  const fitMapToCoordinates = (locations) => {
+    if (!mapRef.current || !locations || locations.length === 0) return;
+    
+    const validLocations = locations.filter(item => 
+      item.location && item.location.lat && item.location.lng
+    );
+    
+    if (validLocations.length === 0) return;
+    
+    if (validLocations.length === 1) {
+      // Se há apenas um ponto, centralizar nele
+      const location = validLocations[0].location;
+      mapRef.current.animateToRegion({
+        latitude: parseFloat(location.lat),
+        longitude: parseFloat(location.lng),
+        latitudeDelta: 0.01,
+        longitudeDelta: 0.01,
+      }, 1000);
+    } else {
+      // Se há múltiplos pontos, ajustar para mostrar todos
+      const coordinates = validLocations.map(item => ({
+        latitude: parseFloat(item.location.lat),
+        longitude: parseFloat(item.location.lng),
+      }));
+      
+      mapRef.current.fitToCoordinates(coordinates, {
+        edgePadding: { top: 50, right: 50, bottom: 50, left: 50 },
+        animated: true,
+      });
+    }
+  };
+
+  // Função para iniciar navegação no Google Maps
+  const handleStartNavigation = async () => {
+    try {
+      const sortedItinerary = getSortedItinerary();
+      if (sortedItinerary.length === 0) {
+        Alert.alert('Aviso', 'Nenhum local no roteiro para navegar');
+        return;
+      }
+
+      // Obter localização atual do usuário
+      let userLocation = null;
+      try {
+        const { status } = await Location.requestForegroundPermissionsAsync();
+        if (status === 'granted') {
+          const location = await Location.getCurrentPositionAsync({});
+          userLocation = {
+            latitude: location.coords.latitude,
+            longitude: location.coords.longitude
+          };
+        }
+      } catch (error) {
+        console.log('⚠️ Não foi possível obter localização atual');
+      }
+
+      // Construir lista de coordenadas para a rota completa
+      const routeCoordinates = sortedItinerary.map(item => 
+        `${item.location.lat},${item.location.lng}`
+      );
+
+      console.log('🗺️ Locais do roteiro:', sortedItinerary.map(item => item.name));
+      console.log('🗺️ Coordenadas da rota:', routeCoordinates);
+
+      // Construir URL do Google Maps com rota completa
+      let mapsUrl = '';
+      
+      if (Platform.OS === 'ios') {
+        // URL para iOS (Apple Maps) - usar formato de múltiplos destinos
+        if (userLocation && routeCoordinates.length > 0) {
+          // Localização atual como origem + todos os locais como destinos
+          const origin = `${userLocation.latitude},${userLocation.longitude}`;
+          const destinations = routeCoordinates.join('+to:');
+          mapsUrl = `http://maps.apple.com/?saddr=${origin}&daddr=${destinations}`;
+        } else if (routeCoordinates.length > 0) {
+          // Apenas os locais do roteiro (primeiro como origem, resto como destinos)
+          const origin = routeCoordinates[0];
+          const destinations = routeCoordinates.slice(1).join('+to:');
+          mapsUrl = destinations ? `http://maps.apple.com/?saddr=${origin}&daddr=${destinations}` : `http://maps.apple.com/?daddr=${origin}`;
+        }
+      } else {
+        // URL para Android (Google Maps) - usar formato de direções
+        if (userLocation && routeCoordinates.length > 0) {
+          // Localização atual como origem + todos os locais como waypoints/destino
+          const origin = `${userLocation.latitude},${userLocation.longitude}`;
+          const waypoints = routeCoordinates.slice(0, -1).join('/'); // Todos exceto o último
+          const destination = routeCoordinates[routeCoordinates.length - 1]; // Último como destino final
+          
+          if (waypoints) {
+            mapsUrl = `https://www.google.com/maps/dir/${origin}/${waypoints}/${destination}`;
+          } else {
+            mapsUrl = `https://www.google.com/maps/dir/${origin}/${destination}`;
+          }
+        } else if (routeCoordinates.length > 0) {
+          // Apenas os locais do roteiro
+          mapsUrl = `https://www.google.com/maps/dir/${routeCoordinates.join('/')}`;
+        }
+      }
+
+      console.log('🗺️ Abrindo navegação:', mapsUrl);
+
+      // Tentar abrir o app de mapas
+      const supported = await Linking.canOpenURL(mapsUrl);
+      if (supported) {
+        await Linking.openURL(mapsUrl);
+      } else {
+        // Fallback: abrir no navegador com URL web do Google Maps
+        let webUrl = '';
+        if (userLocation && routeCoordinates.length > 0) {
+          const origin = `${userLocation.latitude},${userLocation.longitude}`;
+          webUrl = `https://www.google.com/maps/dir/${origin}/${routeCoordinates.join('/')}/`;
+        } else if (routeCoordinates.length > 0) {
+          webUrl = `https://www.google.com/maps/dir/${routeCoordinates.join('/')}/`;
+        }
+        
+        console.log('🗺️ Fallback - abrindo no navegador:', webUrl);
+        await Linking.openURL(webUrl);
+      }
+
+      Alert.alert(
+        'Navegação Iniciada',
+        `Rota com ${sortedItinerary.length} locais aberta no app de mapas!`
+      );
+
+    } catch (error) {
+      console.error('❌ Erro ao iniciar navegação:', error);
+      Alert.alert('Erro', 'Não foi possível abrir a navegação. Verifique se você tem um app de mapas instalado.');
+    }
+  };
+
   // Função para favoritar local
   const handleFavoriteLocation = async (location) => {
+    if (!isAuthenticated) {
+      Alert.alert(
+        'Login Necessário',
+        'Você precisa estar logado para favoritar locais. Deseja fazer login?',
+        [
+          { text: 'Cancelar', style: 'cancel' },
+          { 
+            text: 'Fazer Login', 
+            onPress: () => {
+              setShowLoginModal(true);
+            }
+          }
+        ]
+      );
+      return;
+    }
+
     try {
       setFavoriting(true);
       
+      // Tentar adicionar favorito (deixar backend verificar duplicação)
+      const placeId = location.placeId || location.place_id || location.id;
+      
+      console.log('📍 ROTEIRO - Dados completos do location:', location);
+      console.log('📍 ROTEIRO - Tentando adicionar favorito:', {
+        placeId,
+        nome: location.name,
+        endereco: location.address,
+        tipos: location.types
+      });
+      
       const response = await apiService.addFavorite({
-        placeId: location.placeId || location.id,
+        place_id: placeId,
         nome: location.name,
         endereco: location.address,
         tipo: location.types?.[0] || 'local',
-        rating: location.rating,
-        fotoUrl: location.photos?.[0]?.photo_reference || null
+        rating: location.rating || 0
       });
 
       if (response.success) {
         Alert.alert('Sucesso', 'Local adicionado aos favoritos!');
+        await loadUserData(); // Recarregar dados do usuário para atualizar favoritos
+      } else {
+        // Verificar se é erro de duplicação
+        if (response.message && response.message.includes('já está nos favoritos')) {
+          Alert.alert('Aviso', 'Este local já está na sua lista de favoritos!');
       } else {
         Alert.alert('Erro', response.message || 'Falha ao favoritar local');
+        }
       }
     } catch (error) {
+      // Não logar erros esperados no console
+      if (!error.message.includes('Login Necessário') && 
+          !error.message.includes('Token de acesso necessário') &&
+          !error.message.includes('já está nos favoritos')) {
       console.error('Erro ao favoritar local:', error);
-      Alert.alert('Erro', 'Falha ao favoritar local');
+      }
+      
+      // Verificar se é erro de duplicação
+      if (error.message && error.message.includes('já está nos favoritos')) {
+        Alert.alert('Aviso', 'Este local já está na sua lista de favoritos!');
+      } else {
+        Alert.alert('Erro', error.message || 'Falha ao favoritar local');
+      }
     } finally {
       setFavoriting(false);
     }
@@ -971,54 +1274,58 @@ const ItineraryScreen = ({ generatedItinerary: propItinerary }) => {
       }
 
       const placeId = place.place_id || place.id;
+      const placeName = place.name;
       
-      if (favorites.includes(placeId)) {
+      console.log('🔍 Radar - Tentando favoritar:', { placeId, placeName });
+      
+      // Verificar se já está nos favoritos (verificação simples apenas por place_id)
+      const existingFavorite = userFavorites.find(fav => fav.place_id === placeId);
+      
+      if (existingFavorite) {
+        console.log('⚠️ Radar - Local já está nos favoritos, removendo');
         // Remover dos favoritos
-        const favoriteToRemove = userFavorites.find(fav => fav.placeId === placeId);
-        if (favoriteToRemove) {
-          await apiService.removeFavorite(favoriteToRemove.id);
-          setFavorites(favorites.filter(id => id !== placeId));
-          setUserFavorites(userFavorites.filter(fav => fav.id !== favoriteToRemove.id));
+        const response = await apiService.removeFavorite(existingFavorite.id);
+        if (response.success) {
           console.log('📍 Local removido dos favoritos:', place.name);
           Alert.alert('Sucesso', 'Local removido dos favoritos!');
+          await loadUserData(); // Recarregar dados
         }
       } else {
-        // Adicionar aos favoritos
+        console.log('✅ Radar - Tentando adicionar novo favorito');
+        // Adicionar aos favoritos (deixar backend verificar duplicação)
         const favoriteData = {
-          name: place.name,
-          address: place.formatted_address || place.vicinity,
-          placeId: placeId,
-          coordinates: {
-            lat: place.geometry?.location?.lat || place.location?.lat,
-            lng: place.geometry?.location?.lng || place.location?.lng
-          },
-          rating: place.rating || 0,
-          priceLevel: place.price_level || null,
-          types: place.types || [],
-          photos: place.photos || [],
-          openingHours: place.opening_hours || null,
-          contact: {
-            phone: place.formatted_phone_number || null,
-            website: place.website || null
-          }
+          place_id: placeId,
+          nome: place.name,
+          endereco: place.formatted_address || place.vicinity || 'Endereço não disponível',
+          tipo: place.types?.[0] || 'local',
+          rating: place.rating || 0
         };
+        
+        console.log('📍 Radar - Dados do favorito:', favoriteData);
         
         const response = await apiService.addFavorite(favoriteData);
         if (response.success) {
-          setFavorites([...favorites, placeId]);
-          setUserFavorites([...userFavorites, {
-            id: response.data.favorite._id,
-            name: place.name,
-            address: favoriteData.address,
-            rating: place.rating || 0
-          }]);
-          console.log('📍 Local adicionado aos favoritos:', place.name);
+          console.log('✅ Radar - Favorito adicionado com sucesso');
           Alert.alert('Sucesso', 'Local adicionado aos favoritos!');
+          await loadUserData(); // Recarregar dados para atualizar a lista
+        } else {
+          // Verificar se é erro de duplicação
+          if (response.message && response.message.includes('já está nos favoritos')) {
+            Alert.alert('Aviso', 'Este local já está na sua lista de favoritos!');
+          } else {
+            Alert.alert('Erro', response.message || 'Falha ao favoritar local');
+          }
         }
       }
     } catch (error) {
       console.error('❌ Erro ao favoritar local:', error);
-      Alert.alert('Erro', 'Falha ao favoritar local. Tente novamente.');
+      
+      // Verificar se é erro de duplicação
+      if (error.message && error.message.includes('já está nos favoritos')) {
+        Alert.alert('Aviso', 'Este local já está na sua lista de favoritos!');
+      } else {
+        Alert.alert('Erro', error.message || 'Falha ao favoritar local. Tente novamente.');
+      }
     }
   };
 
@@ -1031,7 +1338,7 @@ const ItineraryScreen = ({ generatedItinerary: propItinerary }) => {
       
       if (response.success) {
         setIsAuthenticated(true);
-        setUser(response.data.user);
+        setUser(response.data);
         setShowLoginModal(false);
         
         // Carrega dados do usuário
@@ -1044,7 +1351,11 @@ const ItineraryScreen = ({ generatedItinerary: propItinerary }) => {
       }
       
     } catch (error) {
+      // Não logar erros de autenticação esperados
+      if (!error.message.includes('Email ou senha inválidos') && 
+          !error.message.includes('Formato de email inválido')) {
       console.error('❌ Erro no login:', error);
+      }
       Alert.alert('Erro', error.message || 'Falha ao fazer login. Tente novamente.');
     }
   };
@@ -1057,7 +1368,7 @@ const ItineraryScreen = ({ generatedItinerary: propItinerary }) => {
       
       if (response.success) {
         setIsAuthenticated(true);
-        setUser(response.data.user);
+        setUser(response.data);
         setShowRegisterModal(false);
         
         // Carrega dados do usuário
@@ -1070,7 +1381,12 @@ const ItineraryScreen = ({ generatedItinerary: propItinerary }) => {
       }
       
     } catch (error) {
+      // Não logar erros de registro esperados
+      if (!error.message.includes('Este email já está em uso') && 
+          !error.message.includes('Formato de email inválido') &&
+          !error.message.includes('Todos os campos são obrigatórios')) {
       console.error('❌ Erro no registro:', error);
+      }
       Alert.alert('Erro', error.message || 'Falha ao criar conta. Tente novamente.');
     }
   };
@@ -1092,6 +1408,7 @@ const ItineraryScreen = ({ generatedItinerary: propItinerary }) => {
               setSavedRoutes([]);
               setUserFavorites([]);
               console.log('👋 Usuário deslogado');
+              Alert.alert('Logout', 'Você foi desconectado com sucesso!');
             } catch (error) {
               console.error('Erro no logout:', error);
               // Mesmo com erro, limpa os dados locais
@@ -1099,6 +1416,7 @@ const ItineraryScreen = ({ generatedItinerary: propItinerary }) => {
               setUser(null);
               setSavedRoutes([]);
               setUserFavorites([]);
+              Alert.alert('Logout', 'Você foi desconectado!');
             }
           }
         }
@@ -1106,41 +1424,52 @@ const ItineraryScreen = ({ generatedItinerary: propItinerary }) => {
     );
   };
 
-  const loadUserData = async () => {
-    try {
-      console.log('📊 Carregando dados do usuário');
-      
-      // Carregar dados do usuário
-      const profileResponse = await apiService.getProfile();
-      
-      if (profileResponse.success) {
-        const { roteiros, favoritos } = profileResponse.data;
+    const loadUserData = async () => {
+      try {
+        console.log('📊 Carregando dados do usuário');
         
-        // Transformar dados para o formato esperado
-        const routes = roteiros.map(route => ({
-          id: route.id,
-          name: route.titulo,
-          date: route.data_criacao,
-          locations: route.locations || []
-        }));
+        // Carregar dados do usuário
+        const profileResponse = await apiService.getProfile();
         
-        const favorites = favoritos.map(fav => ({
-          id: fav.id,
-          name: fav.nome,
-          address: fav.endereco,
-          rating: fav.rating || 0
-        }));
+        if (profileResponse.success) {
+          const { roteiros, favoritos } = profileResponse.data;
+          
+          // Transformar dados para o formato esperado
+          const routes = roteiros.map(route => ({
+            id: route.id,
+            name: route.titulo,
+            date: route.data_criacao,
+            locations: route.locations || []
+          }));
+          
+          const favorites = favoritos.map(fav => ({
+            id: fav.id,
+            nome: fav.nome,
+            name: fav.nome, // Compatibilidade
+            endereco: fav.endereco,
+            address: fav.endereco, // Compatibilidade
+            tipo: fav.tipo,
+            rating: fav.rating || 0,
+            place_id: fav.place_id,
+            data_favorito: fav.data_favorito,
+            user_ratings_total: fav.user_ratings_total || 0,
+            price_level: fav.price_level || 0,
+            descricao: fav.descricao || ''
+          }));
+          
+          setSavedRoutes(routes);
+          setUserFavorites(favorites);
+          
+          console.log('✅ Dados do usuário carregados:', {
+            roteiros: routes.length,
+            favoritos: favorites.length
+          });
+        }
         
-        setSavedRoutes(routes);
-        setUserFavorites(favorites);
-        
-        console.log('✅ Dados do usuário carregados');
+      } catch (error) {
+        console.error('❌ Erro ao carregar dados do usuário:', error);
       }
-      
-    } catch (error) {
-      console.error('❌ Erro ao carregar dados do usuário:', error);
-    }
-  };
+    };
 
   const handleLoadRoute = async (route) => {
     Alert.alert(
@@ -1155,35 +1484,75 @@ const ItineraryScreen = ({ generatedItinerary: propItinerary }) => {
               console.log('📂 Carregando roteiro:', route.name);
               
               // Carregar roteiro do backend
-              const response = await apiService.getRoute(route.id);
+              const response = await apiService.loadItinerary(route.id);
               
               if (response.success) {
-                const routeData = response.data.route;
+                const routeData = response.data;
                 
                 // Transformar dados do backend para o formato do frontend
-                const loadedItinerary = routeData.locations.map((location, index) => ({
-                  id: `item-${index}`,
-                  name: location.name,
-                  address: location.address,
-                  time: location.time,
-                  rating: location.rating || 0,
-                  priceLevel: location.priceLevel || 0,
-                  location: {
-                    lat: location.coordinates.lat,
-                    lng: location.coordinates.lng
-                  },
-                  photos: [],
-                  types: [],
-                  openNow: false,
-                  userRatingsTotal: 0
+                const loadedItinerary = await Promise.all((routeData.locations || []).map(async (location, index) => {
+                  // Tentar buscar fotos se temos informações suficientes
+                  let photos = [];
+                  try {
+                    if (location.name && location.address) {
+                      // Buscar fotos usando Google Places API (simulação por enquanto)
+                      photos = location.photos || [];
+                      
+                      // Se não temos fotos salvas, podemos tentar buscar
+                      if (photos.length === 0) {
+                        // Por enquanto, usar uma foto padrão baseada no tipo
+                        const defaultPhotos = [
+                          {
+                            photo_reference: 'default_photo',
+                            height: 400,
+                            width: 400,
+                            html_attributions: []
+                          }
+                        ];
+                        photos = defaultPhotos;
+                      }
+                    }
+                  } catch (error) {
+                    console.log('⚠️ Não foi possível carregar fotos para:', location.name);
+                    photos = [];
+                  }
+
+                  return {
+                    id: `item-${index}`,
+                    name: location.name,
+                    address: location.address,
+                    time: location.time,
+                    rating: location.rating || 0,
+                    priceLevel: location.priceLevel || 0,
+                    location: {
+                      lat: location.location?.lat || location.coordinates?.lat || -23.5505,
+                      lng: location.location?.lng || location.coordinates?.lng || -46.6333
+                    },
+                    photos: photos,
+                    types: location.types || [],
+                    openNow: location.openNow || false,
+                    userRatingsTotal: location.userRatingsTotal || 0,
+                    placeId: location.placeId || location.place_id || `loaded_${Date.now()}_${index}`,
+                    place_id: location.placeId || location.place_id || `loaded_${Date.now()}_${index}`
+                  };
                 }));
                 
                 // Atualizar estado
                 setItinerary(loadedItinerary);
-                setDayTitle(routeData.name);
+                setDayTitle(routeData.titulo || 'Roteiro do SampAI');
+                
+                // Mudar para a aba do roteiro para mostrar os locais com fotos
+                setActiveTab('Roteiro');
+                
+                // Ajustar região do mapa para mostrar todos os pontos
+                if (loadedItinerary.length > 0) {
+                  setTimeout(() => {
+                    fitMapToCoordinates(loadedItinerary);
+                  }, 500);
+                }
                 
                 console.log('✅ Roteiro carregado com sucesso');
-                Alert.alert('Sucesso', 'Roteiro carregado com sucesso!');
+                Alert.alert('Sucesso', `Roteiro "${routeData.titulo}" carregado! Veja os locais na aba Roteiro ou visualize a rota no Mapa.`);
               } else {
                 throw new Error(response.message || 'Falha ao carregar roteiro');
               }
@@ -1199,40 +1568,232 @@ const ItineraryScreen = ({ generatedItinerary: propItinerary }) => {
 
   const handleViewFavorite = async (favorite) => {
     try {
-      // Carregar detalhes completos do favorito
-      const response = await apiService.getFavorite(favorite.id);
+      console.log('🔍 Dados do favorito recebido:', favorite);
       
-      if (response.success) {
-        const favoriteData = response.data.favorite;
+      // Mostrar detalhes do favorito usando os dados completos da API
+      const endereco = favorite.endereco || favorite.address || 'Endereço não disponível';
+      const nome = favorite.nome || favorite.name;
+      const rating = favorite.rating || 0;
+      const userRatingsTotal = favorite.user_ratings_total || 0;
+      const tipo = favorite.tipo || 'Local';
+      const priceLevel = favorite.price_level || 0;
+      const descricao = favorite.descricao || '';
+      
+      // Criar texto de preço baseado no price_level
+      const priceText = priceLevel === 0 ? 'Gratuito' : 
+                       priceLevel === 1 ? 'Barato ($)' :
+                       priceLevel === 2 ? 'Moderado ($$)' :
+                       priceLevel === 3 ? 'Caro ($$$)' :
+                       priceLevel === 4 ? 'Muito Caro ($$$$)' : 'Não informado';
+      
+      console.log('🔍 Dados processados:', { endereco, nome, rating, userRatingsTotal, tipo, priceLevel });
+      
+      // Criar mensagem detalhada
+      let detailsMessage = `📍 ${nome}\n\n`;
+      detailsMessage += `🏠 Endereço: ${endereco}\n\n`;
+      detailsMessage += `⭐ Avaliação: ${rating}/5 (${userRatingsTotal} avaliações)\n\n`;
+      detailsMessage += `🏷️ Categoria: ${tipo}\n\n`;
+      detailsMessage += `💰 Preço: ${priceText}`;
+      
+      if (descricao) {
+        detailsMessage += `\n\n📝 Descrição: ${descricao}`;
+      }
         
         Alert.alert(
           'Detalhes do Favorito',
-          `Nome: ${favoriteData.name}\nEndereço: ${favoriteData.address}\nAvaliação: ${favoriteData.rating}/5\nPreço: ${favoriteData.priceText || 'Não informado'}`,
+          detailsMessage,
           [
-            { text: 'OK' },
+            { text: 'Fechar' },
             {
               text: 'Adicionar ao Roteiro',
               onPress: () => {
-                // Simular adição ao roteiro
-                console.log('📍 Adicionando favorito ao roteiro:', favoriteData.name);
-                Alert.alert('Info', 'Funcionalidade em desenvolvimento');
+              console.log('📍 Adicionando favorito ao roteiro:', nome);
+              handleAddFavoriteToItinerary(favorite);
               }
             }
           ]
         );
+    } catch (error) {
+      console.error('❌ Erro ao visualizar favorito:', error);
+      Alert.alert('Erro', 'Falha ao visualizar detalhes do favorito.');
+    }
+  };
+
+  // Função para buscar coordenadas por endereço
+  const getCoordinatesFromAddress = async (address) => {
+    try {
+      if (!address || address === 'Endereço não disponível') {
+        return { lat: -23.5505, lng: -46.6333 }; // Coordenadas padrão de SP
+      }
+
+      // Usar Google Geocoding API
+      const apiKey = 'AIzaSyC2JhGeNqfhzqsH7LmHQRiRC4HTrHQDCOg'; // Mesma chave do Maps
+      const encodedAddress = encodeURIComponent(address + ', São Paulo, Brasil');
+      const url = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodedAddress}&key=${apiKey}`;
+      
+      console.log('🌍 Buscando coordenadas para:', address);
+      
+      const response = await fetch(url);
+      const data = await response.json();
+      
+      if (data.status === 'OK' && data.results.length > 0) {
+        const location = data.results[0].geometry.location;
+        console.log('✅ Coordenadas encontradas:', location);
+        return {
+          lat: location.lat,
+          lng: location.lng
+        };
       } else {
-        throw new Error(response.message || 'Falha ao carregar favorito');
+        console.log('⚠️ Coordenadas não encontradas, usando padrão');
+        return { lat: -23.5505, lng: -46.6333 };
       }
     } catch (error) {
-      console.error('❌ Erro ao carregar favorito:', error);
-      Alert.alert('Erro', 'Falha ao carregar detalhes do favorito.');
+      console.error('❌ Erro ao buscar coordenadas:', error);
+      return { lat: -23.5505, lng: -46.6333 };
+    }
+  };
+
+  // Função para buscar detalhes do Google Places
+  const getPlaceDetailsFromGoogle = async (placeId) => {
+    try {
+      const apiKey = 'AIzaSyC2JhGeNqfhzqsH7LmHQRiRC4HTrHQDCOg';
+      const url = `https://maps.googleapis.com/maps/api/place/details/json?place_id=${placeId}&key=${apiKey}&language=pt-BR&fields=name,formatted_address,geometry,photos,editorial_summary,types`;
+      
+      console.log('🔍 Buscando detalhes do Google Places para:', placeId);
+      
+      const response = await fetch(url);
+      const data = await response.json();
+      
+      if (data.status === 'OK' && data.result) {
+        console.log('✅ Detalhes encontrados no Google Places');
+        return {
+          ...data.result,
+          description: data.result.editorial_summary?.overview || null
+        };
+      } else {
+        console.log('⚠️ Detalhes não encontrados no Google Places');
+        return null;
+      }
+    } catch (error) {
+      console.error('❌ Erro ao buscar detalhes do Google Places:', error);
+      return null;
+    }
+  };
+
+  // Função para gerar descrição do local
+  const generateLocationDescription = (name, type) => {
+    const descriptions = {
+      'restaurant': `${name} é um estabelecimento gastronômico que oferece uma experiência culinária única em São Paulo.`,
+      'tourist_attraction': `${name} é uma atração turística imperdível que faz parte da rica cultura e história de São Paulo.`,
+      'museum': `${name} é um museu que preserva e exibe importantes aspectos da cultura e história brasileira.`,
+      'park': `${name} é um espaço verde que oferece momentos de lazer e contato com a natureza no coração da cidade.`,
+      'shopping_mall': `${name} é um centro comercial que oferece diversas opções de compras, alimentação e entretenimento.`,
+      'church': `${name} é um templo religioso que representa a arquitetura e a fé da comunidade local.`,
+      'art_gallery': `${name} é uma galeria que exibe obras de arte e promove a cultura artística da região.`,
+      'default': `${name} é um local interessante que vale a pena conhecer durante sua visita a São Paulo.`
+    };
+    
+    return descriptions[type] || descriptions['default'];
+  };
+
+  // Função para adicionar favorito ao roteiro
+  const handleAddFavoriteToItinerary = async (favorite) => {
+    try {
+      console.log('📍 Preparando para adicionar favorito ao roteiro:', favorite);
+      
+      // Verificar se o local já está no roteiro (verificação mais robusta)
+      const favoriteName = favorite.nome || favorite.name;
+      const favoritePlaceId = favorite.place_id;
+      
+      console.log('🔍 Verificando duplicação no roteiro:', {
+        favoriteName,
+        favoritePlaceId,
+        itinerary: itinerary.map(i => ({ name: i.name, placeId: i.placeId, place_id: i.place_id }))
+      });
+      
+      const isAlreadyInItinerary = itinerary.some(item => {
+        const sameName = item.name === favoriteName;
+        const samePlaceId = (item.placeId === favoritePlaceId) || (item.place_id === favoritePlaceId);
+        
+        console.log('🔍 Comparando item do roteiro:', {
+          itemName: item.name,
+          itemPlaceId: item.placeId || item.place_id,
+          sameName,
+          samePlaceId
+        });
+        
+        return sameName || samePlaceId;
+      });
+      
+      if (isAlreadyInItinerary) {
+        console.log('⚠️ Local já está no roteiro');
+        Alert.alert('Aviso', `O local "${favoriteName}" já está incluído no seu roteiro atual!`);
+        return;
+      }
+      
+      // Buscar coordenadas reais se temos endereço
+      const endereco = favorite.endereco || favorite.address;
+      const coordinates = await getCoordinatesFromAddress(endereco);
+      
+      // Tentar buscar mais detalhes do local usando Google Places API se temos place_id
+      let enhancedData = {};
+      if (favorite.place_id && favorite.place_id.startsWith('ChIJ')) {
+        try {
+          // Buscar detalhes completos do Google Places
+          const placeDetails = await getPlaceDetailsFromGoogle(favorite.place_id);
+          if (placeDetails) {
+            enhancedData = {
+              photos: placeDetails.photos || [],
+              description: placeDetails.description || generateLocationDescription(favoriteName, favorite.tipo),
+              address: placeDetails.formatted_address || endereco,
+              location: {
+                lat: placeDetails.geometry?.location?.lat || coordinates.lat,
+                lng: placeDetails.geometry?.location?.lng || coordinates.lng
+              }
+            };
+          }
+        } catch (error) {
+          console.log('⚠️ Não foi possível buscar detalhes do Google Places:', error.message);
+        }
+      }
+      
+      // Criar objeto no formato esperado pelo modal de horário
+      const favoriteAsLocation = {
+        name: favoriteName,
+        title: favoriteName, // Compatibilidade
+        address: enhancedData.address || endereco || 'Endereço não disponível',
+        rating: favorite.rating || 0,
+        types: favorite.tipo ? [favorite.tipo] : ['local'],
+        photos: enhancedData.photos || [],
+        place_id: favorite.place_id || `favorite_${favorite.id}`,
+        placeId: favorite.place_id || `favorite_${favorite.id}`, // Compatibilidade
+        priceLevel: 0, // Favoritos não têm preço por padrão
+        openNow: true, // Assumir que está aberto
+        userRatingsTotal: 0,
+        location: enhancedData.location || coordinates,
+        description: enhancedData.description || generateLocationDescription(favoriteName, favorite.tipo)
+      };
+      
+      console.log('📍 Objeto favorito convertido:', favoriteAsLocation);
+      console.log('📍 Coordenadas obtidas:', favoriteAsLocation.location);
+      
+      // Definir como local pendente e abrir modal de horário
+      setPendingLocation(favoriteAsLocation);
+      setIsTimeSelectionModalVisible(true);
+      setSelectedTime('09:00');
+      
+      console.log('📍 Modal de horário aberto para favorito');
+      
+    } catch (error) {
+      console.error('❌ Erro ao preparar favorito para roteiro:', error);
+      Alert.alert('Erro', 'Falha ao adicionar favorito ao roteiro. Tente novamente.');
     }
   };
 
   const handleRemoveFavorite = (favorite) => {
     Alert.alert(
       'Remover Favorito',
-      `Deseja remover "${favorite.name}" dos favoritos?`,
+      `Deseja remover "${favorite.nome || favorite.name}" dos favoritos?`,
       [
         { text: 'Cancelar', style: 'cancel' },
         { 
@@ -1246,7 +1807,7 @@ const ItineraryScreen = ({ generatedItinerary: propItinerary }) => {
               // Atualizar estado local
               setUserFavorites(prev => prev.filter(fav => fav.id !== favorite.id));
               
-              console.log('⭐ Favorito removido:', favorite.name);
+              console.log('⭐ Favorito removido:', favorite.nome || favorite.name);
               Alert.alert('Sucesso', 'Favorito removido com sucesso!');
             } catch (error) {
               console.error('❌ Erro ao remover favorito:', error);
@@ -1279,19 +1840,39 @@ const ItineraryScreen = ({ generatedItinerary: propItinerary }) => {
     if (!selectedTime || !selectedLocationForRoute) return;
 
     // Verificar conflito de horário
-    const timeConflict = checkTimeConflict(selectedTime);
-    if (timeConflict) {
+    const conflictingLocation = checkTimeConflict(selectedTime);
+    if (conflictingLocation) {
+      console.log('⚠️ Radar - Conflito de horário detectado:', conflictingLocation.name);
+      
+      // Sugerir horário alternativo
+      const suggestedTime = suggestAlternativeTime(selectedTime);
+      
       Alert.alert(
-        'Conflito de Horário',
-        `Já existe um local no roteiro às ${selectedTime}. Deseja adicionar mesmo assim?`,
+        'Horário Ocupado',
+        `Já existe um local agendado para ${selectedTime}: "${conflictingLocation.name}".\n\nSugestão: Que tal às ${suggestedTime}?`,
         [
-          { text: 'Cancelar', style: 'cancel' },
-          { text: 'Adicionar Mesmo Assim', onPress: () => addRadarLocationToItinerary() }
+          {
+            text: 'Usar Sugestão',
+            onPress: () => {
+              console.log('📍 Radar - Usuário aceitou sugestão:', suggestedTime);
+              setSelectedTime(suggestedTime);
+            }
+          },
+          {
+            text: 'Escolher Outro',
+            style: 'cancel',
+            onPress: () => {
+              console.log('📍 Radar - Usuário vai escolher outro horário');
+              setSelectedTime('09:00');
+            }
+          }
         ]
       );
-    } else {
-      addRadarLocationToItinerary();
+      return;
     }
+
+    // Se não há conflito, adicionar diretamente
+    addRadarLocationToItinerary();
   };
 
   // Função para adicionar local do radar ao roteiro
@@ -1394,7 +1975,50 @@ const ItineraryScreen = ({ generatedItinerary: propItinerary }) => {
       console.log('📍 Usuário não logado - adicionando apenas localmente');
     }
 
-    setItinerary([...itinerary, newItem]);
+    // Adicionar ao itinerary na posição cronológica correta
+    setItinerary(prev => {
+      try {
+        // Função para converter horário em minutos para comparação
+        const timeToMinutes = (timeStr) => {
+          if (!timeStr) return 0;
+          const [hours, minutes] = timeStr.split(':').map(Number);
+          return hours * 60 + minutes;
+        };
+
+        const newItemMinutes = timeToMinutes(selectedTime);
+        
+        // Encontrar a posição correta para inserir o novo item
+        let insertIndex = prev.length; // Por padrão, adicionar no final
+        
+        for (let i = 0; i < prev.length; i++) {
+          const currentItemMinutes = timeToMinutes(prev[i].time);
+          if (newItemMinutes < currentItemMinutes) {
+            insertIndex = i;
+            break;
+          }
+        }
+        
+        // Criar novo array com o item inserido na posição correta
+        const newItinerary = [
+          ...prev.slice(0, insertIndex),
+          newItem,
+          ...prev.slice(insertIndex)
+        ];
+        
+        console.log('📍 Radar - Itinerary atualizado:', newItinerary.length, 'itens');
+        console.log('📍 Radar - Novo item inserido na posição:', insertIndex, 'com horário:', selectedTime);
+        console.log('📍 Radar - Ordem cronológica:', newItinerary.map(item => ({
+          name: item.name,
+          time: item.time
+        })));
+        
+        return newItinerary;
+      } catch (error) {
+        console.error('💥 Erro ao atualizar itinerary do radar:', error);
+        return [...prev, newItem]; // Fallback: adicionar no final
+      }
+    });
+    
     setIsTimeModalVisible(false);
     setSelectedTime('');
     setSelectedLocationForRoute(null);
@@ -1758,23 +2382,47 @@ const ItineraryScreen = ({ generatedItinerary: propItinerary }) => {
       name: item.name,
       hasLocation: !!(item.location && item.location.lat && item.location.lng),
       hasAddress: !!item.address,
-      location: item.location
+      location: item.location,
+      locationLat: item.location?.lat,
+      locationLng: item.location?.lng,
+      locationLatType: typeof item.location?.lat,
+      locationLngType: typeof item.location?.lng
     })));
     
     // Filtra apenas itens que têm location válida
     const validItems = itinerary.filter(item => {
-      const hasLocation = item && 
-        item.location && 
-        typeof item.location.lat === 'number' && 
-        typeof item.location.lng === 'number';
-      
-      if (!hasLocation) {
-        console.log('❌ Item sem location válida:', item.name, item.location);
-      } else {
-        console.log('✅ Item válido:', item.name, 'lat:', item.location.lat, 'lng:', item.location.lng);
+      if (!item) {
+        console.log('❌ Item é null/undefined');
+        return false;
       }
       
-      return hasLocation;
+      if (!item.location) {
+        console.log('❌ Item sem location:', item.name);
+        return false;
+      }
+      
+      const lat = item.location.lat;
+      const lng = item.location.lng;
+      
+      // Verificar se lat e lng existem e são números válidos
+      const hasValidLat = lat !== null && lat !== undefined && !isNaN(parseFloat(lat));
+      const hasValidLng = lng !== null && lng !== undefined && !isNaN(parseFloat(lng));
+      
+      if (!hasValidLat || !hasValidLng) {
+        console.log('❌ Item com coordenadas inválidas:', {
+          name: item.name,
+          lat: lat,
+          lng: lng,
+          latType: typeof lat,
+          lngType: typeof lng,
+          latValid: hasValidLat,
+          lngValid: hasValidLng
+        });
+        return false;
+      }
+      
+      console.log('✅ Item válido:', item.name, 'lat:', lat, 'lng:', lng);
+      return true;
     });
     
     console.log('✅ Itens válidos para o mapa:', validItems.length);
@@ -1909,7 +2557,7 @@ const ItineraryScreen = ({ generatedItinerary: propItinerary }) => {
                 }}
               />
             ) : (
-              ICONS[mappedItem.icon]
+              createIcons(colors)[mappedItem.icon] || createIcons(colors).food
             )}
           </TouchableOpacity>
         {index < itinerary.length - 1 && <View style={styles.timelineLine} />}
@@ -2412,35 +3060,32 @@ const ItineraryScreen = ({ generatedItinerary: propItinerary }) => {
       </Modal>
 
       <View style={[styles.mainContentWrapper, { backgroundColor: colors.background }]}>
+        {activeTab !== 'Perfil' && (
         <View style={styles.headerContainer}>
           <View style={styles.headerTextContainer}>
             <Text style={[styles.mainTitle, { color: colors.text }]}>Seu Roteiro de Turismo em SP</Text>
             <Text style={[styles.subTitle, { color: colors.textSecondary }]}>Um plano inteligente criado pela SampAI para você!</Text>
           </View>
           <View style={styles.headerButtons}>
-            <TouchableOpacity style={[styles.profileButton, { 
-              backgroundColor: colors.primary,
-              shadowColor: isDark ? '#000' : colors.shadow,
-              shadowOpacity: isDark ? 0.25 : 0.15,
-              elevation: isDark ? 5 : 3
-            }]} onPress={() => {
-              // Navegar para a tela de perfil (case 10)
-              // Por enquanto, vamos apenas mostrar um alert
-              Alert.alert('Perfil', 'Funcionalidade de perfil em desenvolvimento');
-            }}>
-              <Text style={[styles.profileButtonText, { color: 'white' }]}>👤</Text>
-            </TouchableOpacity>
-            
             <TouchableOpacity style={[styles.saveButton, { 
               backgroundColor: colors.accent,
               shadowColor: isDark ? '#000' : colors.shadow,
               shadowOpacity: isDark ? 0.25 : 0.15,
               elevation: isDark ? 5 : 3
-            }]} onPress={() => setShowSaveModal(true)}>
-              <Text style={[styles.saveButtonText, { color: colors.buttonText }]}>Salvar Roteiro</Text>
+            }]} onPress={() => {
+              if (!isAuthenticated) {
+                Alert.alert('Login Necessário', 'Faça login para salvar roteiros');
+                return;
+              }
+              setShowSaveModal(true);
+            }}>
+              <Text style={[styles.saveButtonText, { color: colors.buttonText }]}>
+                {isAuthenticated ? 'Salvar Roteiro' : '🔒 Login p/ Salvar'}
+              </Text>
             </TouchableOpacity>
           </View>
         </View>
+        )}
 
         {activeTab === 'Roteiro' && (
         <FlatList
@@ -2452,7 +3097,6 @@ const ItineraryScreen = ({ generatedItinerary: propItinerary }) => {
               <View>
             <View style={styles.titleContainer}>
               <View style={styles.titleHeader}>
-                <Text style={[styles.titleLabel, { color: colors.text }]}>📝 Nome do Roteiro (editável)</Text>
                 <TouchableOpacity 
                   onPress={toggleTheme}
                   style={[styles.themeToggle, { 
@@ -2469,18 +3113,9 @@ const ItineraryScreen = ({ generatedItinerary: propItinerary }) => {
                   </Text>
                 </TouchableOpacity>
               </View>
-            <TextInput
-              style={[styles.dayTitleInput, { 
-                backgroundColor: colors.input, 
-                color: colors.inputText,
-                borderColor: isDark ? colors.border : colors.inputBorder 
-              }]}
-              value={dayTitle}
-              onChangeText={setDayTitle}
-                placeholder="Digite o nome do seu roteiro"
-                placeholderTextColor={colors.placeholder}
-                multiline={false}
-            />
+            <Text style={[styles.dayTitle, { color: colors.text }]}>
+              {dayTitle}
+            </Text>
             </View>
                 <View style={styles.editControlsContainer}>
                   <TouchableOpacity 
@@ -2576,6 +3211,7 @@ const ItineraryScreen = ({ generatedItinerary: propItinerary }) => {
                 </Text>
               </View>
               <MapView
+                ref={mapRef}
                 style={{ flex: 1, margin: 10, borderRadius: 10 }}
                 initialRegion={{
                   latitude: -23.5505,
@@ -2611,7 +3247,37 @@ const ItineraryScreen = ({ generatedItinerary: propItinerary }) => {
              />
              );
            })}
+           
+           {/* Linha da rota conectando os pontos */}
+           {getSortedItinerary().length > 1 && (
+             <Polyline
+               coordinates={getSortedItinerary()
+                 .filter(item => item.location && item.location.lat && item.location.lng)
+                 .map(item => ({
+                   latitude: parseFloat(item.location.lat),
+                   longitude: parseFloat(item.location.lng)
+                 }))
+               }
+               strokeColor={colors.accent}
+               strokeWidth={3}
+               strokePattern={[1]}
+             />
+           )}
               </MapView>
+              
+              {/* Botão Iniciar Rota */}
+              {getSortedItinerary().length > 0 && (
+                <View style={styles.startRouteContainer}>
+                  <TouchableOpacity 
+                    style={[styles.startRouteButton, { backgroundColor: colors.accent }]}
+                    onPress={handleStartNavigation}
+                  >
+                    <Text style={[styles.startRouteButtonText, { color: colors.buttonText }]}>
+                      🧭 Iniciar Rota
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              )}
             </View>
           </View>
         )}
@@ -2910,7 +3576,7 @@ const ItineraryScreen = ({ generatedItinerary: propItinerary }) => {
               <View style={styles.userContainer}>
                 <View style={styles.userHeader}>
                   <View style={styles.userInfo}>
-                    <Text style={styles.userName}>{user?.name || 'Usuário'}</Text>
+                    <Text style={styles.userName}>{user?.nome || 'Usuário'}</Text>
                     <Text style={styles.userEmail}>{user?.email}</Text>
                   </View>
                   <TouchableOpacity
@@ -2924,7 +3590,12 @@ const ItineraryScreen = ({ generatedItinerary: propItinerary }) => {
                 <ScrollView style={styles.userContent} showsVerticalScrollIndicator={false}>
                   {/* Roteiros Salvos */}
                   <View style={styles.sectionContainer}>
+                    <View style={styles.sectionHeader}>
                     <Text style={styles.sectionTitle}>💾 Roteiros Salvos</Text>
+                      <Text style={styles.sectionCounter}>
+                        {savedRoutes.length}/3 {savedRoutes.length >= 3 ? '🔒' : ''}
+                      </Text>
+                    </View>
                     {savedRoutes.length === 0 ? (
                       <View style={styles.emptySection}>
                         <Text style={styles.emptyText}>Nenhum roteiro salvo ainda</Text>
@@ -2942,10 +3613,12 @@ const ItineraryScreen = ({ generatedItinerary: propItinerary }) => {
                           >
                             <View style={styles.routeCardHeader}>
                               <Text style={styles.routeCardName}>{route.name}</Text>
-                              <Text style={styles.routeCardDate}>{route.date}</Text>
+                              <Text style={styles.routeCardDate}>
+                                {route.date ? new Date(route.date).toLocaleDateString('pt-BR') : 'Data não disponível'}
+                              </Text>
                             </View>
                             <Text style={styles.routeCardLocations}>
-                              📍 {route.locations?.length || 0} locais
+                              📍 {route.totalLocais || route.locations?.length || 0} locais
                             </Text>
                           </TouchableOpacity>
                         ))}
@@ -2968,26 +3641,40 @@ const ItineraryScreen = ({ generatedItinerary: propItinerary }) => {
                         {userFavorites.map((favorite, index) => (
                           <TouchableOpacity
                             key={`favorite-${index}`}
-                            style={styles.favoriteCard}
+                            style={[styles.favoriteCard, { 
+                              backgroundColor: colors.cardBackground,
+                              borderColor: colors.optionBorder 
+                            }]}
                             onPress={() => handleViewFavorite(favorite)}
                           >
-                            <View style={styles.favoriteCardHeader}>
-                              <Text style={styles.favoriteCardName}>{favorite.name}</Text>
+                            <View style={styles.favoriteCardContent}>
+                              <View style={styles.favoriteCardMain}>
+                                <Text style={[styles.favoriteCardName, { color: colors.text }]} numberOfLines={2}>
+                                  {favorite.name}
+                                </Text>
+                                {favorite.address && (
+                                  <Text style={[styles.favoriteCardAddress, { color: colors.textSecondary }]} numberOfLines={1}>
+                                    📍 {favorite.address}
+                                  </Text>
+                                )}
+                                {favorite.rating > 0 && (
+                                  <View style={styles.favoriteCardRatingContainer}>
+                                    <Text style={[styles.favoriteCardRating, { color: colors.accent }]}>
+                                      ⭐ {favorite.rating.toFixed(1)}
+                                    </Text>
+                                    <Text style={[styles.favoriteCardRatingText, { color: colors.textSecondary }]}>
+                                      / 5.0
+                                    </Text>
+                                  </View>
+                                )}
+                              </View>
                               <TouchableOpacity
                                 onPress={() => handleRemoveFavorite(favorite)}
-                                style={styles.favoriteRemoveButton}
+                                style={[styles.favoriteRemoveButton, { backgroundColor: colors.error + '20' }]}
                               >
-                                <Text style={styles.favoriteRemoveText}>⭐</Text>
+                                <Text style={[styles.favoriteRemoveText, { color: colors.error }]}>🗑️</Text>
                               </TouchableOpacity>
                             </View>
-                            <Text style={styles.favoriteCardAddress}>
-                              📍 {favorite.address}
-                            </Text>
-                            {favorite.rating && (
-                              <Text style={styles.favoriteCardRating}>
-                                ⭐ {favorite.rating}/5
-                              </Text>
-                            )}
                           </TouchableOpacity>
                         ))}
                       </View>
@@ -3005,12 +3692,6 @@ const ItineraryScreen = ({ generatedItinerary: propItinerary }) => {
                       <View style={styles.statItem}>
                         <Text style={[styles.statNumber, { color: colors.accent }]}>{userFavorites.length}</Text>
                         <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Favoritos</Text>
-                      </View>
-                      <View style={styles.statItem}>
-                        <Text style={[styles.statNumber, { color: colors.accent }]}>
-                          {savedRoutes.reduce((total, route) => total + (route.locations?.length || 0), 0)}
-                        </Text>
-                        <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Locais Visitados</Text>
                       </View>
                     </View>
                   </View>
@@ -3035,7 +3716,11 @@ const ItineraryScreen = ({ generatedItinerary: propItinerary }) => {
             <View style={styles.authModalContainer}>
               <View style={styles.authModalHeader}>
                 <Text style={styles.authModalTitle}>Fazer Login</Text>
-                <TouchableOpacity onPress={() => setShowLoginModal(false)}>
+                <TouchableOpacity onPress={() => {
+                  setShowLoginModal(false);
+                  setLoginEmail('');
+                  setLoginPassword('');
+                }}>
                   <Text style={styles.closeButtonText}>✕</Text>
                 </TouchableOpacity>
               </View>
@@ -3047,17 +3732,27 @@ const ItineraryScreen = ({ generatedItinerary: propItinerary }) => {
                   placeholderTextColor={COLORS.textSecondary}
                   keyboardType="email-address"
                   autoCapitalize="none"
+                  value={loginEmail}
+                  onChangeText={setLoginEmail}
                 />
                 <TextInput
                   style={styles.authInput}
                   placeholder="Senha"
                   placeholderTextColor={COLORS.textSecondary}
                   secureTextEntry
+                  value={loginPassword}
+                  onChangeText={setLoginPassword}
                 />
                 
                 <TouchableOpacity
                   style={styles.authSubmitButton}
-                  onPress={() => handleLogin('teste@email.com', '123456')}
+                  onPress={() => {
+                    if (!loginEmail.trim() || !loginPassword.trim()) {
+                      Alert.alert('Erro', 'Email e senha são obrigatórios');
+                      return;
+                    }
+                    handleLogin(loginEmail, loginPassword);
+                  }}
                 >
                   <Text style={styles.authSubmitButtonText}>Entrar</Text>
                 </TouchableOpacity>
@@ -3066,6 +3761,8 @@ const ItineraryScreen = ({ generatedItinerary: propItinerary }) => {
                   style={styles.authSwitchButton}
                   onPress={() => {
                     setShowLoginModal(false);
+                    setLoginEmail('');
+                    setLoginPassword('');
                     setShowRegisterModal(true);
                   }}
                 >
@@ -3157,6 +3854,10 @@ const ItineraryScreen = ({ generatedItinerary: propItinerary }) => {
                   style={styles.authSwitchButton}
                   onPress={() => {
                     setShowRegisterModal(false);
+                    setRegisterName('');
+                    setRegisterEmail('');
+                    setRegisterPassword('');
+                    setRegisterConfirmPassword('');
                     setShowLoginModal(true);
                   }}
                 >
