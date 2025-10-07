@@ -540,7 +540,19 @@ app.get('/api/roteiros/:id', authenticateUser, async (req, res) => {
       console.error('Erro ao fazer parse dos locais:', error.message);
       locations = [];
     }
-    
+
+    const alertas = [];
+    for (const r of alertasResult.rows) {
+      const alertaCol = r[0];
+      if (alertaCol) {
+        if (typeof alertaCol.getData === 'function') {
+          const texto = await alertaCol.getData();
+          alertas.push(texto);
+        } else {
+          alertas.push(String(alertaCol));
+        }
+      }
+    }
     const roteiro = {
       id: String(row[0]),
       titulo: String(row[1] || ''),
@@ -549,7 +561,7 @@ app.get('/api/roteiros/:id', authenticateUser, async (req, res) => {
       data_modificacao: row[4] ? new Date(row[4]).toISOString() : null,
       locations: locations,
       totalLocais: Array.isArray(locations) ? locations.length : 0,
-      alertas: alertasResult.rows.map(r => String(r[0] || ''))
+      alertas: alertas[0] || []
     };
     
     console.log(`✅ Roteiro carregado: ${roteiro.titulo} com ${locations.length} locais`);
