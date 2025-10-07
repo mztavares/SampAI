@@ -494,7 +494,7 @@ app.get('/api/roteiros/:id', authenticateUser, async (req, res) => {
     connection = await getConnection();
 
     const sql = `
-      SELECT id, titulo, descricao, data_criacao, data_modificacao, locais
+      SELECT id, titulo, descricao, data_criacao, data_modificacao, locais, id_roteiro
       FROM roteiros
       WHERE id = :id AND usuario_id = :userId
     `;
@@ -505,7 +505,7 @@ app.get('/api/roteiros/:id', authenticateUser, async (req, res) => {
       FROM SEGURANCA_PUBLICA_ALERTAS
       WHERE ID_ROTEIRO_TMP = :idRoteiro
     `;
-
+    const idRoteiro = result.rows.length > 0 ? result.rows[0][6] : null;
     if (result.rows.length === 0) {
       return res.status(404).json({
         success: false,
@@ -513,7 +513,9 @@ app.get('/api/roteiros/:id', authenticateUser, async (req, res) => {
       });
     }
 
-    const alertasResult = await connection.execute(sqlAlertas, { idRoteiro: result.rows[0][6] });
+    const alertasResult = await connection.execute(sqlAlertas, { idRoteiro: idRoteiro });
+
+    console.log('✅ Alertas encontrados:', alertasResult);
     
     const row = result.rows[0];
     let locations = [];
