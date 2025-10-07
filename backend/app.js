@@ -503,7 +503,7 @@ app.get('/api/roteiros/:id', authenticateUser, async (req, res) => {
     const sqlAlertas = `
       SELECT ALERTA
       FROM SEGURANCA_PUBLICA_ALERTAS
-      WHERE ID_ROTEIRO = :idRoteiro
+      WHERE ID_ROTEIRO_TMP = :idRoteiro
     `;
 
     if (result.rows.length === 0) {
