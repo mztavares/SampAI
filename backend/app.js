@@ -347,7 +347,7 @@ const authenticateUser = (req, res, next) => {
 app.post('/api/roteiros', authenticateUser, async (req, res) => {
   let connection;
 
-  const systemPrompt = `Você é um gerador de alertas de segurança pública, dado um roteiro que será feito por um usuário, você deve analisar os locais e gerar alertas de segurança relevantes para cada local, considerando fatores como criminalidade, áreas perigosas, horários de maior risco, entre outros. Seu objetivo é fornecer informações que ajudem o usuário a evitar situações de risco durante o roteiro. Seja claro e objetivo em suas recomendações.`;
+  const systemPrompt = `Você é um gerador de alertas de segurança pública, dado um roteiro que será feito por um usuário, você deve analisar os locais e gerar alertas de segurança relevantes para cada local, considerando fatores como criminalidade, áreas perigosas, horários de maior risco, entre outros. Seu objetivo é fornecer informações que ajudem o usuário a evitar situações de risco durante o roteiro. Seja claro e extremamente objetivo, respondendo em poucas linhas suas recomendações.`;
   const credentialsString = process.env.GCP_CREDENTIALS;
   if (!credentialsString) {
       throw new Error("A variável de ambiente GCP_CREDENTIALS não foi encontrada ou está vazia.");

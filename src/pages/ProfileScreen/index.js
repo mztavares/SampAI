@@ -12,6 +12,7 @@ import {
   Modal,
   TextInput,
 } from 'react-native';
+// import styles from './styles';
 import { useTheme } from '../../contexts/ThemeContext';
 import { createIcons } from '../../config/theme';
 import { apiService } from '../../services/apiService';

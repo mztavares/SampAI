@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator, SafeAreaView, Platform } from 'react-native';
 import Voice from '@react-native-voice/voice';
 import { Audio } from 'expo-av';
+import { styles } from './styles';
 
 // --- CONFIGURAÇÃO ---
 const BACKEND_URL = 'https://sampai.onrender.com'; 
@@ -149,15 +150,19 @@ const OnboardingScreen = ({ onNext }) => {
     for (const opcao of perguntaAtual.opcoes) {
       const palavrasChave = opcao.toLowerCase().split(' ');
       const textoLower = textoIA.toLowerCase();
+      // Extract text from between # symbols
+      const regex = /#(.*?)#/;
+      const match = textoLower.match(regex);
+      if (match && match[1]) {
+        const respostaExtraida = match[1].trim();
+        if (perguntaAtual.opcoes.map(o => o.toLowerCase()).includes(respostaExtraida.toLowerCase())) {
+          return respostaExtraida;
+        }
       
-      // Se encontrar palavras-chave da opção na resposta da IA
-      if (palavrasChave.some(palavra => textoLower.includes(palavra))) {
-        return opcao;
-      }
     }
     
     return null;
-  };
+  }};
 
   const handleConversation = async (userText, isInitial = false) => {
     if (!isInitial && userText) {
@@ -220,9 +225,10 @@ INSTRUÇÕES:
 1. Analise a resposta do usuário e identifique qual opção ela mais se aproxima
 2. Se a resposta for clara e mapear bem para uma das opções:
    - Confirme de forma breve e natural (ex: "Ótimo!", "Perfeito!", "Entendi!")
-   - Mencione a opção identificada sutilmente na sua resposta
+   - Mencione a opção identificada sutilmente na sua resposta: Sempre coloque a opcao identificada entre # e #
    - Faça imediatamente a próxima pergunta: "${proximaPergunta ? proximaPergunta.pergunta : ''}"
    ${proximaPergunta ? `- As opções da próxima são: ${proximaPergunta.opcoes.join(', ')}` : ''}
+
 
 3. Se a resposta for ambígua ou não mapear bem:
    - Peça esclarecimento gentilmente
@@ -249,6 +255,8 @@ Seja NATURAL e CONVERSACIONAL. Não liste opções a menos que necessário.
 
       const data = await response.json();
       const { text: aiTextResponse, audio: audioBase64 } = data;
+
+      console.log('💬 Resposta da IA:', aiTextResponse);
 
       conversationHistory.current.push({ role: "model", parts: [{ text: aiTextResponse }] });
       setMessages(prev => [...prev, { from: 'ai', text: aiTextResponse }]);
@@ -318,6 +326,13 @@ Seja NATURAL e CONVERSACIONAL. Não liste opções a menos que necessário.
 
   return (
     <SafeAreaView style={styles.container}>
+      <View style={styles.welcomeContainer}>
+        <Text style={styles.welcomeText}>
+          Seja bem-vindo ao <Text style={styles.welcomeHighlight}>SampAI!</Text> 👋{"\n"}
+          Vamos criar um roteiro juntos. Primeiro, me diga qual sua intenção em São Paulo?
+        </Text>
+      </View>
+
       <ScrollView 
         ref={scrollViewRef}
         contentContainerStyle={styles.chatContainer}
@@ -357,17 +372,17 @@ Seja NATURAL e CONVERSACIONAL. Não liste opções a menos que necessário.
 
 export default OnboardingScreen;
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f0f4f7', paddingTop: Platform.OS === 'android' ? 25 : 0 },
-  chatContainer: { padding: 10, paddingBottom: 20 },
-  messageBubble: { padding: 12, borderRadius: 18, marginBottom: 10, maxWidth: '85%', flexDirection: 'row', alignItems: 'center' },
-  aiBubble: { backgroundColor: '#fff', alignSelf: 'flex-start', borderTopLeftRadius: 5, elevation: 1 },
-  userBubble: { backgroundColor: '#007bff', alignSelf: 'flex-end', borderTopRightRadius: 5, elevation: 1 },
-  aiText: { color: '#333', fontSize: 16, marginLeft: 8, flexShrink: 1 },
-  userText: { color: '#fff', fontSize: 16 },
-  micContainer: { padding: 20, backgroundColor: '#fff', borderTopWidth: 1, borderColor: '#e7e7e7', alignItems: 'center' },
-  micButton: { width: 64, height: 64, borderRadius: 32, backgroundColor: '#007bff', justifyContent: 'center', alignItems: 'center', elevation: 5 },
-  statusText: { marginTop: 10, color: '#666' },
-  progressText: { marginTop: 5, color: '#999', fontSize: 12 },
-  iconStyle: { fontSize: 24, color: '#fff' },
-});
+// const styles = StyleSheet.create({
+//   container: { flex: 1, backgroundColor: '#f0f4f7', paddingTop: Platform.OS === 'android' ? 25 : 0 },
+//   chatContainer: { padding: 10, paddingBottom: 20 },
+//   messageBubble: { padding: 12, borderRadius: 18, marginBottom: 10, maxWidth: '85%', flexDirection: 'row', alignItems: 'center' },
+//   aiBubble: { backgroundColor: '#fff', alignSelf: 'flex-start', borderTopLeftRadius: 5, elevation: 1 },
+//   userBubble: { backgroundColor: '#007bff', alignSelf: 'flex-end', borderTopRightRadius: 5, elevation: 1 },
+//   aiText: { color: '#333', fontSize: 16, marginLeft: 8, flexShrink: 1 },
+//   userText: { color: '#fff', fontSize: 16 },
+//   micContainer: { padding: 20, backgroundColor: '#fff', borderTopWidth: 1, borderColor: '#e7e7e7', alignItems: 'center' },
+//   micButton: { width: 64, height: 64, borderRadius: 32, backgroundColor: '#007bff', justifyContent: 'center', alignItems: 'center', elevation: 5 },
+//   statusText: { marginTop: 10, color: '#666' },
+//   progressText: { marginTop: 5, color: '#999', fontSize: 12 },
+//   iconStyle: { fontSize: 24, color: '#fff' },
+// });

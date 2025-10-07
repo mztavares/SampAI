@@ -1,4 +1,4 @@
-import { StyleSheet } from 'react-native';
+import { StyleSheet, Platform } from 'react-native';
 
 const COLORS = {
   background: '#2D2D2D',
@@ -14,94 +14,97 @@ export const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: COLORS.background,
+    paddingTop: Platform.OS === 'android' ? 25 : 0,
   },
-  progressContainer: {
-    height: 8,
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-    borderRadius: 4,
-    marginHorizontal: 20,
-    marginTop: 10,
+  chatContainer: {
+    padding: 10,
+    paddingBottom: 20,
   },
-  progressBar: {
-    height: '100%',
+  messageBubble: {
+    padding: 12,
+    borderRadius: 18,
+    marginBottom: 10,
+    maxWidth: '85%',
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  aiBubble: {
+    backgroundColor: COLORS.cardBackground,
+    alignSelf: 'flex-start',
+    borderTopLeftRadius: 5,
+    shadowColor: '#000',
+    shadowOpacity: 0.2,
+    shadowRadius: 3,
+    elevation: 2,
+  },
+  userBubble: {
     backgroundColor: COLORS.accent,
-    borderRadius: 4,
+    alignSelf: 'flex-end',
+    borderTopRightRadius: 5,
+    shadowColor: '#000',
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  aiText: {
+    color: COLORS.text,
+    fontSize: 16,
+    marginLeft: 8,
+    flexShrink: 1,
+  },
+  userText: {
+    color: COLORS.background,
+    fontSize: 16,
+  },
+  micContainer: {
+    padding: 20,
+    backgroundColor: COLORS.cardBackground,
+    borderTopWidth: 1,
+    borderColor: COLORS.optionBorder,
+    alignItems: 'center',
+  },
+  micButton: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: COLORS.accent,
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOpacity: 0.3,
+    shadowRadius: 5,
+    elevation: 5,
+  },
+  statusText: {
+    marginTop: 10,
+    color: COLORS.textSecondary,
   },
   progressText: {
-    fontFamily: 'Montserrat_500Medium',
+    marginTop: 5,
     color: COLORS.textSecondary,
-    textAlign: 'right',
-    marginHorizontal: 20,
-    marginTop: 4,
     fontSize: 12,
   },
-  card: {
-    flex: 1,
-    backgroundColor: COLORS.cardBackground,
-    margin: 20,
-    borderRadius: 16,
-    padding: 24,
-    justifyContent: 'space-between',
-  },
-  headerText: {
-    fontFamily: 'Poppins_700Bold',
+  iconStyle: {
     fontSize: 24,
-    color: COLORS.text,
-    textAlign: 'center',
-    marginBottom: 8,
-  },
-  subHeaderText: {
-    fontFamily: 'Montserrat_500Medium',
-    fontSize: 14,
-    color: COLORS.textSecondary,
-    textAlign: 'center',
-    marginBottom: 32,
-  },
-  questionText: {
-    fontFamily: 'Poppins_700Bold',
-    fontSize: 18,
-    color: COLORS.text,
-    marginBottom: 24,
-  },
-  optionButton: {
-    borderWidth: 1,
-    borderColor: COLORS.optionBorder,
-    borderRadius: 12,
-    paddingVertical: 16,
-    paddingHorizontal: 20,
-    marginBottom: 12,
-    backgroundColor: 'transparent',
-  },
-  optionButtonSelected: {
-    borderColor: COLORS.accent,
-    backgroundColor: 'rgba(255, 165, 0, 0.1)',
-  },
-  optionText: {
-    fontFamily: 'Montserrat_500Medium',
-    fontSize: 16,
-    color: COLORS.text,
-  },
-  footer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginTop: 24,
-    paddingTop: 16,
-    borderTopColor: '#4F4F4F',
-    borderTopWidth: 1,
-  },
-  nextButton: {
-    backgroundColor: COLORS.accent,
-    borderRadius: 12,
-    paddingVertical: 16,
-    paddingHorizontal: 40,
-  },
-  nextButtonDisabled: {
-    backgroundColor: '#8C5B00',
-  },
-  nextButtonText: {
-    fontFamily: 'Poppins_700Bold',
-    fontSize: 16,
     color: COLORS.background,
+  },
+  welcomeContainer: {
+    padding: 16,
+    backgroundColor: COLORS.cardBackground,
+    borderBottomWidth: 1,
+    borderColor: COLORS.optionBorder,
+  },
+
+  welcomeText: {
+    color: COLORS.text,
+    fontSize: 16,
+    fontFamily: 'Poppins_500Medium',
+    textAlign: 'center',
+    lineHeight: 22,
+  },
+
+  welcomeHighlight: {
+    color: COLORS.accent,
+    fontFamily: 'Poppins_700Bold',
   },
 });

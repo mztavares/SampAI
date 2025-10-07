@@ -130,6 +130,7 @@ const ItineraryScreen = ({ generatedItinerary: propItinerary }) => {
   const [activeTab, setActiveTab] = useState('Roteiro');
   const [dayTitle, setDayTitle] = useState(truncateRouteName(propItinerary?.name) || 'Roteiro do SampAI');
   const [itinerary, setItinerary] = useState([]);
+  const [alerts, setAlerts] = useState('');
   const [isSearchModalVisible, setIsSearchModalVisible] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState([]);
@@ -197,6 +198,9 @@ const ItineraryScreen = ({ generatedItinerary: propItinerary }) => {
   const [isDragging, setIsDragging] = useState(false);
   const sliderRef = useRef(null);
   const mapRef = useRef(null);
+
+  const [expanded, setExpanded] = useState(false);
+
 
   // Não inicializar autenticação automaticamente
   // useEffect(() => {
@@ -1459,10 +1463,10 @@ const ItineraryScreen = ({ generatedItinerary: propItinerary }) => {
           
           setSavedRoutes(routes);
           setUserFavorites(favorites);
-          
+
           console.log('✅ Dados do usuário carregados:', {
             roteiros: routes.length,
-            favoritos: favorites.length
+            favoritos: favorites.length,
           });
         }
         
@@ -1540,6 +1544,7 @@ const ItineraryScreen = ({ generatedItinerary: propItinerary }) => {
                 // Atualizar estado
                 setItinerary(loadedItinerary);
                 setDayTitle(routeData.titulo || 'Roteiro do SampAI');
+                setAlerts(routeData.alertas || '');
                 
                 // Mudar para a aba do roteiro para mostrar os locais com fotos
                 setActiveTab('Roteiro');
@@ -3138,18 +3143,45 @@ const ItineraryScreen = ({ generatedItinerary: propItinerary }) => {
           ListFooterComponent={
             <View style={styles.footerContainer}>
                 <View style={styles.alertContainer}>
-                    {createIcons(colors).warning}
-                    <Text style={styles.alertText}>
-                        <Text style={{fontFamily: 'Poppins_700Bold'}}>Dica de Segurança da SampAI: </Text>
-                        Mantenha sempre seus pertences seguros e evite locais isolados.
-                    </Text>
+                  {createIcons(colors).warning}
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.alertText, { fontFamily: 'Poppins_700Bold' }]}>
+                    Dica de Segurança da SampAI:{' '}
+                  </Text>
+
+                  {/* Texto com fallback e expandir */}
+                  <Text
+                    style={[styles.alertText, { fontFamily: 'Poppins_400Regular' }]}
+                    numberOfLines={expanded ? undefined : 3}
+                    ellipsizeMode="tail"
+                  >
+                    {alerts && alerts.trim().length > 0
+                      ? alerts
+                      : 'Mantenha sempre seus pertences seguros e evite locais isolados.'}
+                  </Text>
+
+                  {/* Mostrar mais / menos */}
+                  {(alerts && alerts.trim().length > 120) && (
+                    <TouchableOpacity onPress={() => setExpanded(!expanded)}>
+                      <Text style={[styles.alertText, { fontFamily: 'Poppins_700Bold' }]}>
+                        {expanded ? 'Mostrar menos ▲' : 'Mostrar mais ▼'}
+                      </Text>
+                    </TouchableOpacity>
+                  )}
                 </View>
-                <TouchableOpacity style={styles.addButton} onPress={() => setIsSearchModalVisible(true)}>
-                    {createIcons(colors).add}
-                    <Text style={styles.addButtonText}>Adicionar Local</Text>
-                </TouchableOpacity>
+              </View>
+              
+
+              <TouchableOpacity
+                style={styles.addButton}
+                onPress={() => setIsSearchModalVisible(true)}
+              >
+                {createIcons(colors).add}
+                <Text style={styles.addButtonText}>Adicionar Local</Text>
+              </TouchableOpacity>
             </View>
           }
+
         />
         )}
 
