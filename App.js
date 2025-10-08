@@ -2,7 +2,9 @@ import React, { useState } from 'react';
 import { StyleSheet } from 'react-native';
 import { ThemeProvider } from './src/contexts/ThemeContext';
 import SplashScreen from './src/pages/SplashScreen';
-import OnboardingScreen from './src/pages/OnboardingScreen';
+// import OnboardingScreen from './src/pages/OnboardingScreen';
+// import OnboardingScreenManual from './src/pages/OnboardingScreenManual';
+import OnboardingWrapper from './src/pages/OnboardingWrapper';
 import RegionScreen from './src/pages/RegionScreen';
 import FoodScreen from './src/pages/FoodScreen';
 import ActivitiesScreen from './src/pages/ActivitiesScreen';
@@ -72,7 +74,7 @@ export default function App() {
   const renderFormStep = () => {
     switch (formStep) {
       case 0:
-        return <OnboardingScreen onNext={(answers) => { setUserAnswers(answers); setFormStep(8); }} />;
+        return <OnboardingWrapper onNext={(answers) => { setUserAnswers(answers); setFormStep(1); }} />;
       case 1:
         return <RegionScreen onNext={(answer) => { handleAnswer('region', answer); setFormStep(2); }} onBack={() => setFormStep(0)} />;
       case 2:

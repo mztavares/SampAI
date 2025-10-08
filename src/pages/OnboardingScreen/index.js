@@ -265,15 +265,6 @@ Seja NATURAL e CONVERSACIONAL. Não liste opções a menos que necessário.
       if (!isInitial) {
         const respostaExtraida = extrairResposta(aiTextResponse);
         
-        // Se a IA mencionou uma das opções E fez a próxima pergunta, consideramos validado
-        const fezProximaPergunta = proximaPergunta && aiTextResponse.toLowerCase().includes(proximaPergunta.pergunta.toLowerCase().substring(0, 20));
-        
-        // if (respostaExtraida && fezProximaPergunta) {
-        //   respostasValidadas.current[perguntaAtual.id] = respostaExtraida;
-        //   perguntaAtualIndex.current++;
-        //   console.log('✅ Resposta validada:', perguntaAtual.id, '=', respostaExtraida);
-        //   console.log(`📊 Progresso: ${perguntaAtualIndex.current}/${PERGUNTAS_ROTEIRO.length}`);
-        // }
         if (respostaExtraida) {
           respostasValidadas.current[perguntaAtual.id] = respostaExtraida;
           perguntaAtualIndex.current++;

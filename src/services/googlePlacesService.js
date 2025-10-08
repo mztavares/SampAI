@@ -382,6 +382,7 @@ export const searchPlaces = async (query, location = null, radius = 5000) => {
             address: place.formatted_address || place.vicinity || 'Endereço não disponível',
             formattedAddress: place.formatted_address,
             openNow: place.opening_hours?.open_now || false,
+            periods: place.opening_hours?.periods || [],
             userRatingsTotal: place.user_ratings_total || 0,
             photos: place.photos || [],
             businessStatus: place.business_status || 'OPERATIONAL'
@@ -437,6 +438,8 @@ const searchPlacesBasedOnAnswers = async (userAnswers) => {
   const region = userAnswers.region || 'São Paulo';
   const age = userAnswers.age || '';
   const schedule = userAnswers.schedule || '';
+
+  console.log('🎯 Buscando lugares com base nas respostas:', userAnswers);
   
   let searchQueries = [];
   
@@ -476,19 +479,19 @@ const searchPlacesBasedOnAnswers = async (userAnswers) => {
   }
   
   // Buscas específicas por comida
-  if (food && food !== 'Brasileira') {
+  if (food) {
     searchQueries.push(`restaurantes ${food.toLowerCase()} em São Paulo`);
     searchQueries.push(`comida ${food.toLowerCase()} em São Paulo`);
   }
   
   // Buscas adicionais baseadas na idade
-  if (age.includes('Família') || age.includes('Criança')) {
+  if (age.includes('30 a 50 anos') || age.includes('50 anos ou mais')) {
     searchQueries.push('atrações familiares em São Paulo');
     searchQueries.push('parques infantis em São Paulo');
     searchQueries.push('zoológico em São Paulo');
   }
   
-  if (age.includes('Jovem')) {
+  if (age.includes('15 a 19 anos') || age.includes('20 a 30 anos')) {
     searchQueries.push('vida noturna jovem em São Paulo');
     searchQueries.push('festas em São Paulo');
   }
@@ -496,6 +499,12 @@ const searchPlacesBasedOnAnswers = async (userAnswers) => {
   // Buscas baseadas no horário
   if (schedule.includes('Manhã')) {
     searchQueries.push('cafés da manhã em São Paulo');
+    searchQueries.push('padarias em São Paulo');
+  }
+  
+  // Buscas baseadas no horário
+  if (schedule.includes('Tarde')) {
+    searchQueries.push('cafés da tarde em São Paulo');
     searchQueries.push('padarias em São Paulo');
   }
   
@@ -508,17 +517,31 @@ const searchPlacesBasedOnAnswers = async (userAnswers) => {
   console.log(`📊 Total de queries: ${searchQueries.length}`);
   
   // Buscar lugares usando a API
+// Buscar lugares usando a API
   const allPlaces = [];
   for (const query of searchQueries) {
     try {
       console.log(`🔍 Buscando: ${query}`);
       const places = await searchPlaces(query);
       console.log(`📍 Encontrados ${places.length} lugares para: ${query}`);
-      allPlaces.push(...places);
+
+      if (places.length > 0) {
+        // Pegar o primeiro lugar que está aberto
+        const openPlace = places.find(p => p.openNow === true);
+        if (openPlace) {
+          allPlaces.push(openPlace);
+          console.log(`✅ Adicionado: ${openPlace.name} (aberto agora)`);
+        } else {
+          console.log(`⚠️ Nenhum lugar aberto encontrado para: ${query}`);
+        }
+      } else {
+        console.log(`⚠️ Nenhum lugar encontrado para: ${query}`);
+      }
     } catch (error) {
       console.error(`❌ Erro ao buscar: ${query}`, error);
     }
   }
+
   
   // Remover duplicatas baseado no ID
   const uniquePlaces = allPlaces.filter((place, index, self) => 
@@ -529,15 +552,15 @@ const searchPlacesBasedOnAnswers = async (userAnswers) => {
   console.log('📍 Nomes dos lugares:', uniquePlaces.map(p => p.name));
   
   // Ordenar por relevância (rating + user_ratings_total)
-  const sortedPlaces = uniquePlaces.sort((a, b) => {
-    const scoreA = (a.rating || 0) * Math.log((a.userRatingsTotal || 1) + 1);
-    const scoreB = (b.rating || 0) * Math.log((b.userRatingsTotal || 1) + 1);
-    return scoreB - scoreA;
-  });
+  // const sortedPlaces = uniquePlaces.sort((a, b) => {
+  //   const scoreA = (a.rating || 0) * Math.log((a.userRatingsTotal || 1) + 1);
+  //   const scoreB = (b.rating || 0) * Math.log((b.userRatingsTotal || 1) + 1);
+  //   return scoreB - scoreA;
+  // });
   
-  console.log('🏆 Melhores lugares por relevância:', sortedPlaces.slice(0, 10).map(p => `${p.name} (${p.rating}⭐)`));
+  // console.log('🏆 Melhores lugares por relevância:', sortedPlaces.slice(0, 10).map(p => `${p.name} (${p.rating}⭐)`));
   
-  return sortedPlaces.slice(0, 5); // Retornar apenas os 5 melhores
+  return uniquePlaces// Retornar apenas os 5 melhores
 };
 
 // Função principal para gerar roteiro personalizado
@@ -624,11 +647,11 @@ const addIntelligentSchedule = (items, userAnswers) => {
   }
   
   // Ajustar baseado na idade
-  if (age.includes('Criança') || age.includes('Família')) {
-    endHour = Math.min(endHour, 20); // Famílias terminam mais cedo
-  } else if (age.includes('Jovem')) {
-    startHour = Math.max(startHour, 18); // Jovens começam mais tarde
-  }
+  // if (age.includes('30 a 50 anos') || age.includes('50 anos ou mais')) {
+  //   endHour = Math.min(endHour, 20); // Famílias terminam mais cedo
+  // } else if (age.includes('20 a 30 anos') || age.includes('15 a 19 anos')) {
+  //   startHour = Math.max(startHour, 18); // Jovens começam mais tarde
+  // }
   
   console.log(`⏰ Período de tempo: ${startHour}h às ${endHour}h`);
   
@@ -647,7 +670,7 @@ const addIntelligentSchedule = (items, userAnswers) => {
     
     // Vida noturna por último
     if (aTypes.includes('nightlife') || aTypes.includes('bar')) return 1;
-    if (bTypes.includes('nightlife') || bTypes.includes('bar')) return -1;
+    if (bTypes.includes('nightlife') || bTypes.includes('bar')) return -1; 
     
     return 0;
   });
